@@ -72,7 +72,7 @@ func zerorange(p *obj.Prog, frame int64, lo int64, hi int64) *obj.Prog {
 	// 	ADD	$1, T0
 	//	BNE	T0, T1, loop
 	p = appendpp(p, riscv.AADD,
-		obj.Addr{Type: obj.TYPE_CONST, Offset: frame + lo},
+		obj.Addr{Type: obj.TYPE_CONST, Offset: int64(gc.Widthreg) + frame + lo}, // Frame size will be increased for RA
 		&obj.Addr{Type: obj.TYPE_REG, Reg: riscv.REG_SP},
 		obj.Addr{Type: obj.TYPE_REG, Reg: riscv.REG_T0},
 		0)
