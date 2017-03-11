@@ -338,8 +338,12 @@ func rewriteValueRISCV(v *Value, config *Config) bool {
 		return rewriteValueRISCV_OpOr8(v, config)
 	case OpOrB:
 		return rewriteValueRISCV_OpOrB(v, config)
+	case OpRISCVADD:
+		return rewriteValueRISCV_OpRISCVADD(v, config)
 	case OpRISCVADDI:
 		return rewriteValueRISCV_OpRISCVADDI(v, config)
+	case OpRISCVAND:
+		return rewriteValueRISCV_OpRISCVAND(v, config)
 	case OpRISCVCOMPARE:
 		return rewriteValueRISCV_OpRISCVCOMPARE(v, config)
 	case OpRISCVMOVBUload:
@@ -372,12 +376,20 @@ func rewriteValueRISCV(v *Value, config *Config) bool {
 		return rewriteValueRISCV_OpRISCVMOVWstore(v, config)
 	case OpRISCVMOVWstorezero:
 		return rewriteValueRISCV_OpRISCVMOVWstorezero(v, config)
+	case OpRISCVMUL:
+		return rewriteValueRISCV_OpRISCVMUL(v, config)
+	case OpRISCVOR:
+		return rewriteValueRISCV_OpRISCVOR(v, config)
 	case OpRISCVSLLI:
 		return rewriteValueRISCV_OpRISCVSLLI(v, config)
 	case OpRISCVSRAI:
 		return rewriteValueRISCV_OpRISCVSRAI(v, config)
 	case OpRISCVSRLI:
 		return rewriteValueRISCV_OpRISCVSRLI(v, config)
+	case OpRISCVSUB:
+		return rewriteValueRISCV_OpRISCVSUB(v, config)
+	case OpRISCVXOR:
+		return rewriteValueRISCV_OpRISCVXOR(v, config)
 	case OpRsh16Ux16:
 		return rewriteValueRISCV_OpRsh16Ux16(v, config)
 	case OpRsh16Ux32:
@@ -3286,12 +3298,10 @@ func rewriteValueRISCV_OpNeg16(v *Value, config *Config) bool {
 	_ = b
 	// match: (Neg16 x)
 	// cond:
-	// result: (SUB (MOVDconst) x)
+	// result: (NEG x)
 	for {
 		x := v.Args[0]
-		v.reset(OpRISCVSUB)
-		v0 := b.NewValue0(v.Pos, OpRISCVMOVDconst, config.fe.TypeUInt64())
-		v.AddArg(v0)
+		v.reset(OpRISCVNEG)
 		v.AddArg(x)
 		return true
 	}
@@ -3301,12 +3311,10 @@ func rewriteValueRISCV_OpNeg32(v *Value, config *Config) bool {
 	_ = b
 	// match: (Neg32 x)
 	// cond:
-	// result: (SUB (MOVDconst) x)
+	// result: (NEG x)
 	for {
 		x := v.Args[0]
-		v.reset(OpRISCVSUB)
-		v0 := b.NewValue0(v.Pos, OpRISCVMOVDconst, config.fe.TypeUInt64())
-		v.AddArg(v0)
+		v.reset(OpRISCVNEG)
 		v.AddArg(x)
 		return true
 	}
@@ -3329,12 +3337,10 @@ func rewriteValueRISCV_OpNeg64(v *Value, config *Config) bool {
 	_ = b
 	// match: (Neg64 x)
 	// cond:
-	// result: (SUB (MOVDconst) x)
+	// result: (NEG x)
 	for {
 		x := v.Args[0]
-		v.reset(OpRISCVSUB)
-		v0 := b.NewValue0(v.Pos, OpRISCVMOVDconst, config.fe.TypeUInt64())
-		v.AddArg(v0)
+		v.reset(OpRISCVNEG)
 		v.AddArg(x)
 		return true
 	}
@@ -3357,12 +3363,10 @@ func rewriteValueRISCV_OpNeg8(v *Value, config *Config) bool {
 	_ = b
 	// match: (Neg8  x)
 	// cond:
-	// result: (SUB (MOVDconst) x)
+	// result: (NEG x)
 	for {
 		x := v.Args[0]
-		v.reset(OpRISCVSUB)
-		v0 := b.NewValue0(v.Pos, OpRISCVMOVDconst, config.fe.TypeUInt64())
-		v.AddArg(v0)
+		v.reset(OpRISCVNEG)
 		v.AddArg(x)
 		return true
 	}
@@ -3714,6 +3718,41 @@ func rewriteValueRISCV_OpOrB(v *Value, config *Config) bool {
 		return true
 	}
 }
+func rewriteValueRISCV_OpRISCVADD(v *Value, config *Config) bool {
+	b := v.Block
+	_ = b
+	// match: (ADD (MOVDconst [c]) x)
+	// cond:
+	// result: (ADDI [c] x)
+	for {
+		v_0 := v.Args[0]
+		if v_0.Op != OpRISCVMOVDconst {
+			break
+		}
+		c := v_0.AuxInt
+		x := v.Args[1]
+		v.reset(OpRISCVADDI)
+		v.AuxInt = c
+		v.AddArg(x)
+		return true
+	}
+	// match: (ADD x (MOVDconst [c]))
+	// cond:
+	// result: (ADDI [c] x)
+	for {
+		x := v.Args[0]
+		v_1 := v.Args[1]
+		if v_1.Op != OpRISCVMOVDconst {
+			break
+		}
+		c := v_1.AuxInt
+		v.reset(OpRISCVADDI)
+		v.AuxInt = c
+		v.AddArg(x)
+		return true
+	}
+	return false
+}
 func rewriteValueRISCV_OpRISCVADDI(v *Value, config *Config) bool {
 	b := v.Block
 	_ = b
@@ -3778,6 +3817,41 @@ func rewriteValueRISCV_OpRISCVADDI(v *Value, config *Config) bool {
 		x := v.Args[0]
 		v.reset(OpCopy)
 		v.Type = x.Type
+		v.AddArg(x)
+		return true
+	}
+	return false
+}
+func rewriteValueRISCV_OpRISCVAND(v *Value, config *Config) bool {
+	b := v.Block
+	_ = b
+	// match: (AND (MOVDconst [c]) x)
+	// cond:
+	// result: (ANDI [c] x)
+	for {
+		v_0 := v.Args[0]
+		if v_0.Op != OpRISCVMOVDconst {
+			break
+		}
+		c := v_0.AuxInt
+		x := v.Args[1]
+		v.reset(OpRISCVANDI)
+		v.AuxInt = c
+		v.AddArg(x)
+		return true
+	}
+	// match: (AND x (MOVDconst [c]))
+	// cond:
+	// result: (ANDI [c] x)
+	for {
+		x := v.Args[0]
+		v_1 := v.Args[1]
+		if v_1.Op != OpRISCVMOVDconst {
+			break
+		}
+		c := v_1.AuxInt
+		v.reset(OpRISCVANDI)
+		v.AuxInt = c
 		v.AddArg(x)
 		return true
 	}
@@ -4704,6 +4778,196 @@ func rewriteValueRISCV_OpRISCVMOVWstorezero(v *Value, config *Config) bool {
 	}
 	return false
 }
+func rewriteValueRISCV_OpRISCVMUL(v *Value, config *Config) bool {
+	b := v.Block
+	_ = b
+	// match: (MUL x (MOVDconst [-1]))
+	// cond:
+	// result: (NEG x)
+	for {
+		x := v.Args[0]
+		v_1 := v.Args[1]
+		if v_1.Op != OpRISCVMOVDconst {
+			break
+		}
+		if v_1.AuxInt != -1 {
+			break
+		}
+		v.reset(OpRISCVNEG)
+		v.AddArg(x)
+		return true
+	}
+	// match: (MUL _ (MOVDconst [0]))
+	// cond:
+	// result: (MOVDconst [0])
+	for {
+		v_1 := v.Args[1]
+		if v_1.Op != OpRISCVMOVDconst {
+			break
+		}
+		if v_1.AuxInt != 0 {
+			break
+		}
+		v.reset(OpRISCVMOVDconst)
+		v.AuxInt = 0
+		return true
+	}
+	// match: (MUL x (MOVDconst [1]))
+	// cond:
+	// result: x
+	for {
+		x := v.Args[0]
+		v_1 := v.Args[1]
+		if v_1.Op != OpRISCVMOVDconst {
+			break
+		}
+		if v_1.AuxInt != 1 {
+			break
+		}
+		v.reset(OpCopy)
+		v.Type = x.Type
+		v.AddArg(x)
+		return true
+	}
+	// match: (MUL x (MOVDconst [c]))
+	// cond: isPowerOfTwo(c)
+	// result: (SLLI [log2(c)] x)
+	for {
+		x := v.Args[0]
+		v_1 := v.Args[1]
+		if v_1.Op != OpRISCVMOVDconst {
+			break
+		}
+		c := v_1.AuxInt
+		if !(isPowerOfTwo(c)) {
+			break
+		}
+		v.reset(OpRISCVSLLI)
+		v.AuxInt = log2(c)
+		v.AddArg(x)
+		return true
+	}
+	// match: (MUL (MOVDconst [-1]) x)
+	// cond:
+	// result: (NEG x)
+	for {
+		v_0 := v.Args[0]
+		if v_0.Op != OpRISCVMOVDconst {
+			break
+		}
+		if v_0.AuxInt != -1 {
+			break
+		}
+		x := v.Args[1]
+		v.reset(OpRISCVNEG)
+		v.AddArg(x)
+		return true
+	}
+	// match: (MUL (MOVDconst [0]) _)
+	// cond:
+	// result: (MOVDconst [0])
+	for {
+		v_0 := v.Args[0]
+		if v_0.Op != OpRISCVMOVDconst {
+			break
+		}
+		if v_0.AuxInt != 0 {
+			break
+		}
+		v.reset(OpRISCVMOVDconst)
+		v.AuxInt = 0
+		return true
+	}
+	// match: (MUL (MOVDconst [1]) x)
+	// cond:
+	// result: x
+	for {
+		v_0 := v.Args[0]
+		if v_0.Op != OpRISCVMOVDconst {
+			break
+		}
+		if v_0.AuxInt != 1 {
+			break
+		}
+		x := v.Args[1]
+		v.reset(OpCopy)
+		v.Type = x.Type
+		v.AddArg(x)
+		return true
+	}
+	// match: (MUL (MOVDconst [c]) x)
+	// cond: isPowerOfTwo(c)
+	// result: (SLLI [log2(c)] x)
+	for {
+		v_0 := v.Args[0]
+		if v_0.Op != OpRISCVMOVDconst {
+			break
+		}
+		c := v_0.AuxInt
+		x := v.Args[1]
+		if !(isPowerOfTwo(c)) {
+			break
+		}
+		v.reset(OpRISCVSLLI)
+		v.AuxInt = log2(c)
+		v.AddArg(x)
+		return true
+	}
+	// match: (MUL (MOVDconst [c]) x)
+	// cond: isPowerOfTwo(c)
+	// result: (SLLI [log2(c)] x)
+	for {
+		v_0 := v.Args[0]
+		if v_0.Op != OpRISCVMOVDconst {
+			break
+		}
+		c := v_0.AuxInt
+		x := v.Args[1]
+		if !(isPowerOfTwo(c)) {
+			break
+		}
+		v.reset(OpRISCVSLLI)
+		v.AuxInt = log2(c)
+		v.AddArg(x)
+		return true
+	}
+	return false
+}
+func rewriteValueRISCV_OpRISCVOR(v *Value, config *Config) bool {
+	b := v.Block
+	_ = b
+	// match: (OR  (MOVDconst [c]) x)
+	// cond:
+	// result: (ORI [c] x)
+	for {
+		v_0 := v.Args[0]
+		if v_0.Op != OpRISCVMOVDconst {
+			break
+		}
+		c := v_0.AuxInt
+		x := v.Args[1]
+		v.reset(OpRISCVORI)
+		v.AuxInt = c
+		v.AddArg(x)
+		return true
+	}
+	// match: (OR  x (MOVDconst [c]))
+	// cond:
+	// result: (ORI [c] x)
+	for {
+		x := v.Args[0]
+		v_1 := v.Args[1]
+		if v_1.Op != OpRISCVMOVDconst {
+			break
+		}
+		c := v_1.AuxInt
+		v.reset(OpRISCVORI)
+		v.AuxInt = c
+		v.AddArg(x)
+		return true
+	}
+	return false
+}
 func rewriteValueRISCV_OpRISCVSLLI(v *Value, config *Config) bool {
 	b := v.Block
 	_ = b
@@ -5069,6 +5333,64 @@ func rewriteValueRISCV_OpRISCVSRLI(v *Value, config *Config) bool {
 		d := v_0.AuxInt
 		v.reset(OpRISCVMOVDconst)
 		v.AuxInt = int64(uint64(d) >> uint64(c))
+		return true
+	}
+	return false
+}
+func rewriteValueRISCV_OpRISCVSUB(v *Value, config *Config) bool {
+	b := v.Block
+	_ = b
+	// match: (SUB x (MOVDconst [c]))
+	// cond: is32Bit(-c)
+	// result: (ADDI [-c] x)
+	for {
+		x := v.Args[0]
+		v_1 := v.Args[1]
+		if v_1.Op != OpRISCVMOVDconst {
+			break
+		}
+		c := v_1.AuxInt
+		if !(is32Bit(-c)) {
+			break
+		}
+		v.reset(OpRISCVADDI)
+		v.AuxInt = -c
+		v.AddArg(x)
+		return true
+	}
+	return false
+}
+func rewriteValueRISCV_OpRISCVXOR(v *Value, config *Config) bool {
+	b := v.Block
+	_ = b
+	// match: (XOR (MOVDconst [c]) x)
+	// cond:
+	// result: (XORI [c] x)
+	for {
+		v_0 := v.Args[0]
+		if v_0.Op != OpRISCVMOVDconst {
+			break
+		}
+		c := v_0.AuxInt
+		x := v.Args[1]
+		v.reset(OpRISCVXORI)
+		v.AuxInt = c
+		v.AddArg(x)
+		return true
+	}
+	// match: (XOR x (MOVDconst [c]))
+	// cond:
+	// result: (XORI [c] x)
+	for {
+		x := v.Args[0]
+		v_1 := v.Args[1]
+		if v_1.Op != OpRISCVMOVDconst {
+			break
+		}
+		c := v_1.AuxInt
+		v.reset(OpRISCVXORI)
+		v.AuxInt = c
+		v.AddArg(x)
 		return true
 	}
 	return false
@@ -6076,25 +6398,14 @@ func rewriteValueRISCV_OpSlicemask(v *Value, config *Config) bool {
 	_ = b
 	// match: (Slicemask <t> x)
 	// cond:
-	// result: (XOR (MOVDconst [-1]) (SRA <t> (SUB <t> x (MOVDconst [1])) (MOVDconst [63])))
+	// result: (NEG (SNEZ <t> x))
 	for {
 		t := v.Type
 		x := v.Args[0]
-		v.reset(OpRISCVXOR)
-		v0 := b.NewValue0(v.Pos, OpRISCVMOVDconst, config.fe.TypeUInt64())
-		v0.AuxInt = -1
+		v.reset(OpRISCVNEG)
+		v0 := b.NewValue0(v.Pos, OpRISCVSNEZ, t)
+		v0.AddArg(x)
 		v.AddArg(v0)
-		v1 := b.NewValue0(v.Pos, OpRISCVSRA, t)
-		v2 := b.NewValue0(v.Pos, OpRISCVSUB, t)
-		v2.AddArg(x)
-		v3 := b.NewValue0(v.Pos, OpRISCVMOVDconst, config.fe.TypeUInt64())
-		v3.AuxInt = 1
-		v2.AddArg(v3)
-		v1.AddArg(v2)
-		v4 := b.NewValue0(v.Pos, OpRISCVMOVDconst, config.fe.TypeUInt64())
-		v4.AuxInt = 63
-		v1.AddArg(v4)
-		v.AddArg(v1)
 		return true
 	}
 }

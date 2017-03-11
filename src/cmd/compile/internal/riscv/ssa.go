@@ -347,6 +347,13 @@ func ssaGenValue(s *gc.SSAGenState, v *ssa.Value) {
 		p.From.Reg = v.Args[0].Reg()
 		p.To.Type = obj.TYPE_REG
 		p.To.Reg = v.Reg()
+	case ssa.OpRISCVNEG:
+		p := gc.Prog(riscv.ASUB)
+		p.From.Type = obj.TYPE_REG
+		p.From.Reg = v.Args[0].Reg()
+		p.From3 = &obj.Addr{Type: obj.TYPE_REG, Reg: riscv.REG_ZERO}
+		p.To.Type = obj.TYPE_REG
+		p.To.Reg = v.Reg()
 	case ssa.OpRISCVCALLstatic, ssa.OpRISCVCALLclosure, ssa.OpRISCVCALLdefer, ssa.OpRISCVCALLgo, ssa.OpRISCVCALLinter:
 		if v.Op == ssa.OpRISCVCALLstatic && v.Aux.(*gc.Sym) == gc.Deferreturn.Sym {
 			// Deferred calls will appear to be returning to
