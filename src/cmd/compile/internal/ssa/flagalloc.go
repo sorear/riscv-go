@@ -67,7 +67,7 @@ func flagalloc(f *Func) {
 		b.Values = b.Values[:0]
 		// The current live flag value the pre-flagalloc copy).
 		var flag *Value
-		if len(b.Preds) > 0 {
+		if len(b.Preds) > 0 && !f.Config.jumpsSetFlags {
 			flag = end[b.Preds[0].b.ID]
 			// Note: the following condition depends on the lack of critical edges.
 			for _, e := range b.Preds[1:] {
