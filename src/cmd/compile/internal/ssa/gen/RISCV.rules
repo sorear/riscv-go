@@ -89,9 +89,9 @@
 (Xor8  x y) -> (XOR x y)
 
 (Neg64 x) -> (SUB (MOVDconst) x)
-(Neg32 x) -> (SUB (MOVWconst) x)
-(Neg16 x) -> (SUB (MOVHconst) x)
-(Neg8  x) -> (SUB (MOVBconst) x)
+(Neg32 x) -> (SUB (MOVDconst) x)
+(Neg16 x) -> (SUB (MOVDconst) x)
+(Neg8  x) -> (SUB (MOVDconst) x)
 (Neg32F x) -> (FNEGS x)
 (Neg64F x) -> (FNEGD x)
 
@@ -108,19 +108,20 @@
 // We always extend to 64 bits; there's no reason not to,
 // and optimization rules can then collapse some extensions.
 
-(SignExt8to16  <t> x) -> (SRAI [56] (SLLI <t> [56] x))
-(SignExt8to32  <t> x) -> (SRAI [56] (SLLI <t> [56] x))
-(SignExt8to64  <t> x) -> (SRAI [56] (SLLI <t> [56] x))
-(SignExt16to32 <t> x) -> (SRAI [48] (SLLI <t> [48] x))
-(SignExt16to64 <t> x) -> (SRAI [48] (SLLI <t> [48] x))
-(SignExt32to64 <t> x) -> (SRAI [32] (SLLI <t> [32] x))
+// the intermediate needs to be 64-bits wide (unless we use *W-variants) or high bits could get cut off
+(SignExt8to16  x) -> (SRAI [56] (SLLI <config.fe.TypeInt64()> [56] x))
+(SignExt8to32  x) -> (SRAI [56] (SLLI <config.fe.TypeInt64()> [56] x))
+(SignExt8to64  x) -> (SRAI [56] (SLLI <config.fe.TypeInt64()> [56] x))
+(SignExt16to32 x) -> (SRAI [48] (SLLI <config.fe.TypeInt64()> [48] x))
+(SignExt16to64 x) -> (SRAI [48] (SLLI <config.fe.TypeInt64()> [48] x))
+(SignExt32to64 x) -> (SRAI [32] (SLLI <config.fe.TypeInt64()> [32] x))
 
-(ZeroExt8to16  <t> x) -> (SRLI [56] (SLLI <t> [56] x))
-(ZeroExt8to32  <t> x) -> (SRLI [56] (SLLI <t> [56] x))
-(ZeroExt8to64  <t> x) -> (SRLI [56] (SLLI <t> [56] x))
-(ZeroExt16to32 <t> x) -> (SRLI [48] (SLLI <t> [48] x))
-(ZeroExt16to64 <t> x) -> (SRLI [48] (SLLI <t> [48] x))
-(ZeroExt32to64 <t> x) -> (SRLI [32] (SLLI <t> [32] x))
+(ZeroExt8to16  x) -> (SRLI [56] (SLLI <config.fe.TypeUInt64()> [56] x))
+(ZeroExt8to32  x) -> (SRLI [56] (SLLI <config.fe.TypeUInt64()> [56] x))
+(ZeroExt8to64  x) -> (SRLI [56] (SLLI <config.fe.TypeUInt64()> [56] x))
+(ZeroExt16to32 x) -> (SRLI [48] (SLLI <config.fe.TypeUInt64()> [48] x))
+(ZeroExt16to64 x) -> (SRLI [48] (SLLI <config.fe.TypeUInt64()> [48] x))
+(ZeroExt32to64 x) -> (SRLI [32] (SLLI <config.fe.TypeUInt64()> [32] x))
 
 (Cvt32to32F x) -> (FCVTSW x)
 (Cvt32to64F x) -> (FCVTDW x)
@@ -276,19 +277,27 @@
 (Geq64F x y) -> (FLED y x)
 (Geq32F x y) -> (FLES y x)
 
+// We do it this way because there is a high likelihood the extension can be elided
+// TODO(sorear): Can this be made conditional on indicators of that likelihood?
 (EqPtr x y) -> (SEQZ (SUB <x.Type> x y))
 (Eq64  x y) -> (SEQZ (SUB <x.Type> x y))
-(Eq32  x y) -> (SEQZ (ZeroExt32to64 (SUB <x.Type> x y)))
-(Eq16  x y) -> (SEQZ (ZeroExt16to64 (SUB <x.Type> x y)))
-(Eq8   x y) -> (SEQZ (ZeroExt8to64  (SUB <x.Type> x y)))
+(Eq32  x y) &&  isSigned(x.Type) -> (SEQZ (SUB <config.fe.TypeInt64()>  (SignExt32to64 x) (SignExt32to64 y)))
+(Eq32  x y) && !isSigned(x.Type) -> (SEQZ (SUB <config.fe.TypeUInt64()> (ZeroExt32to64 x) (ZeroExt32to64 y)))
+(Eq16  x y) &&  isSigned(x.Type) -> (SEQZ (SUB <config.fe.TypeInt64()>  (SignExt16to64 x) (SignExt16to64 y)))
+(Eq16  x y) && !isSigned(x.Type) -> (SEQZ (SUB <config.fe.TypeUInt64()> (ZeroExt16to64 x) (ZeroExt16to64 y)))
+(Eq8   x y) &&  isSigned(x.Type) -> (SEQZ (SUB <config.fe.TypeInt64()>  (SignExt8to64 x) (SignExt8to64 y)))
+(Eq8   x y) && !isSigned(x.Type) -> (SEQZ (SUB <config.fe.TypeUInt64()> (ZeroExt8to64 x) (ZeroExt8to64 y)))
 (Eq64F x y) -> (FEQD x y)
 (Eq32F x y) -> (FEQS x y)
 
 (NeqPtr x y) -> (SNEZ (SUB <x.Type> x y))
 (Neq64  x y) -> (SNEZ (SUB <x.Type> x y))
-(Neq32  x y) -> (SNEZ (ZeroExt32to64 (SUB <x.Type> x y)))
-(Neq16  x y) -> (SNEZ (ZeroExt16to64 (SUB <x.Type> x y)))
-(Neq8   x y) -> (SNEZ (ZeroExt8to64  (SUB <x.Type> x y)))
+(Neq32  x y) &&  isSigned(x.Type) -> (SNEZ (SUB <config.fe.TypeInt64()>  (SignExt32to64 x) (SignExt32to64 y)))
+(Neq32  x y) && !isSigned(x.Type) -> (SNEZ (SUB <config.fe.TypeUInt64()> (ZeroExt32to64 x) (ZeroExt32to64 y)))
+(Neq16  x y) &&  isSigned(x.Type) -> (SNEZ (SUB <config.fe.TypeInt64()>  (SignExt16to64 x) (SignExt16to64 y)))
+(Neq16  x y) && !isSigned(x.Type) -> (SNEZ (SUB <config.fe.TypeUInt64()> (ZeroExt16to64 x) (ZeroExt16to64 y)))
+(Neq8   x y) &&  isSigned(x.Type) -> (SNEZ (SUB <config.fe.TypeInt64()>  (SignExt8to64 x) (SignExt8to64 y)))
+(Neq8   x y) && !isSigned(x.Type) -> (SNEZ (SUB <config.fe.TypeUInt64()> (ZeroExt8to64 x) (ZeroExt8to64 y)))
 (Neq64F x y) -> (FNED x y)
 (Neq32F x y) -> (FNES x y)
 
@@ -386,16 +395,39 @@
 (MOVWstore [off] {sym} ptr (MOVDconst [0]) mem) -> (MOVWstorezero [off] {sym} ptr mem)
 (MOVDstore [off] {sym} ptr (MOVDconst [0]) mem) -> (MOVDstorezero [off] {sym} ptr mem)
 
+// don't extend after proper load
+// TODO(sorear): do we need a type shim like the ARM port does?  Rematerialization should be safe here since it can only make the result more type-extended.
+(SRAI [32] (SLLI [32] x:(MOVBload _ _))) && isSigned(x.Type) -> x
+(SRAI [48] (SLLI [48] x:(MOVBload _ _))) && isSigned(x.Type) -> x
+(SRAI [56] (SLLI [56] x:(MOVBload _ _))) && isSigned(x.Type) -> x
+(SRAI [32] (SLLI [32] x:(MOVHload _ _))) && isSigned(x.Type) -> x
+(SRAI [48] (SLLI [48] x:(MOVHload _ _))) && isSigned(x.Type) -> x
+(SRAI [32] (SLLI [32] x:(MOVWload _ _))) && isSigned(x.Type) -> x
+
+(SRLI [32] (SLLI [32] x:(MOVBUload _ _))) && !isSigned(x.Type) -> x
+(SRLI [48] (SLLI [48] x:(MOVBUload _ _))) && !isSigned(x.Type) -> x
+(SRLI [56] (SLLI [56] x:(MOVBUload _ _))) && !isSigned(x.Type) -> x
+(SRLI [32] (SLLI [32] x:(MOVHUload _ _))) && !isSigned(x.Type) -> x
+(SRLI [48] (SLLI [48] x:(MOVHUload _ _))) && !isSigned(x.Type) -> x
+(SRLI [32] (SLLI [32] x:(MOVWUload _ _))) && !isSigned(x.Type) -> x
+
 // Similarly, fold ADDI into MOVaddr to avoid confusing live variable analysis
 // with OffPtr -> ADDI.
 (ADDI [c] (MOVaddr [d] {s} x)) && is32Bit(c+d) -> (MOVaddr [c+d] {s} x)
 
+// generic constant folding
+(ADDI [c] (MOVDconst [d]))  -> (MOVDconst [c+d])
+(ADDI [c] (ADDI [d] x))     -> (ADDI [c+d] x)
+(SLLI [c] (MOVDconst [d]))  -> (MOVDconst [int64(d)<<uint64(c)])
+(SRLI [c] (MOVDconst [d]))  -> (MOVDconst [int64(uint64(d)>>uint64(c))])
+(SRAI [c] (MOVDconst [d]))  -> (MOVDconst [int64(d)>>uint64(c)])
+
 // Zeroing
 // TODO: more optimized zeroing, including attempting to use aligned accesses.
 (Zero [s]   _ mem) && SizeAndAlign(s).Size() == 0 -> mem
-(Zero [s] ptr mem) && SizeAndAlign(s).Size() == 1 -> (MOVBstore ptr (MOVBconst) mem)
-(Zero [s] ptr mem) && SizeAndAlign(s).Size() == 2 -> (MOVHstore ptr (MOVHconst) mem)
-(Zero [s] ptr mem) && SizeAndAlign(s).Size() == 4 -> (MOVWstore ptr (MOVWconst) mem)
+(Zero [s] ptr mem) && SizeAndAlign(s).Size() == 1 -> (MOVBstore ptr (MOVDconst) mem)
+(Zero [s] ptr mem) && SizeAndAlign(s).Size() == 2 -> (MOVHstore ptr (MOVDconst) mem)
+(Zero [s] ptr mem) && SizeAndAlign(s).Size() == 4 -> (MOVWstore ptr (MOVDconst) mem)
 (Zero [s] ptr mem) && SizeAndAlign(s).Size() == 8 -> (MOVDstore ptr (MOVDconst) mem)
 
 // Generic zeroing uses a loop
@@ -443,14 +475,14 @@
 (OffPtr [off] ptr:(SP)) -> (MOVaddr [off] ptr)
 (OffPtr [off] ptr) -> (ADDI [off] ptr)
 
-(Const8 [val]) -> (MOVBconst [val])
-(Const16 [val]) -> (MOVHconst [val])
-(Const32 [val]) -> (MOVWconst [val])
+(Const8 [val]) -> (MOVDconst [val])
+(Const16 [val]) -> (MOVDconst [val])
+(Const32 [val]) -> (MOVDconst [val])
 (Const64 [val]) -> (MOVDconst [val])
 (Const32F [val]) -> (FMVSX (MOVSconst [val]))
 (Const64F [val]) -> (FMVDX (MOVDconst [val]))
 (ConstNil) -> (MOVDconst [0])
-(ConstBool [b]) -> (MOVBconst [b])
+(ConstBool [b]) -> (MOVDconst [b])
 
 (Addr {sym} base) -> (MOVaddr {sym} base)
 
