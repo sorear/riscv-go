@@ -37,6 +37,7 @@ type Config struct {
 	use387          bool                       // GO386=387
 	OldArch         bool                       // True for older versions of architecture, e.g. true for PPC64BE, false for PPC64LE
 	NeedsFpScratch  bool                       // No direct move between GP and FP register sets
+	jumpsSetFlags   bool                       // Flags cannot be live between basic blocks
 	BigEndian       bool                       //
 	DebugTest       bool                       // default true unless $GOSSAHASH != ""; as a debugging aid, make new code conditional on this and use GOSSAHASH to binary search for failing cases
 	sparsePhiCutoff uint64                     // Sparse phi location algorithm used above this #blocks*#variables score
