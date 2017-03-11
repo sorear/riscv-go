@@ -154,6 +154,20 @@
 
 // Shifts
 
+// constant shifts
+(Lsh64x64  x (MOVDconst [c])) && uint64(c) < 64 -> (SLLI x [c])
+(Rsh64x64  x (MOVDconst [c])) && uint64(c) < 64 -> (SRAI x [c])
+(Rsh64Ux64 x (MOVDconst [c])) && uint64(c) < 64 -> (SRLI x [c])
+(Lsh32x64  x (MOVDconst [c])) && uint64(c) < 32 -> (SLLI x [c])
+(Rsh32x64  x (MOVDconst [c])) && uint64(c) < 32 -> (SRAI (SignExt32to64 x) [c])
+(Rsh32Ux64 x (MOVDconst [c])) && uint64(c) < 32 -> (SRLI (ZeroExt32to64 x) [c])
+(Lsh16x64  x (MOVDconst [c])) && uint64(c) < 16 -> (SLLI x [c])
+(Rsh16x64  x (MOVDconst [c])) && uint64(c) < 16 -> (SRAI (SignExt16to64 x) [c])
+(Rsh16Ux64 x (MOVDconst [c])) && uint64(c) < 16 -> (SRLI (ZeroExt16to64 x) [c])
+(Lsh8x64   x (MOVDconst [c])) && uint64(c) < 8  -> (SLLI x [c])
+(Rsh8x64   x (MOVDconst [c])) && uint64(c) < 8  -> (SRAI (SignExt8to64  x) [c])
+(Rsh8Ux64  x (MOVDconst [c])) && uint64(c) < 8  -> (SRLI (ZeroExt8to64  x) [c])
+
 // SLL only considers the bottom 6 bits of y. If y > 64, the result should
 // always be 0.
 //
@@ -415,7 +429,9 @@
 // fold constant into arithmatic ops
 (ADD (MOVDconst [c]) x) -> (ADDI [c] x)
 (ADD x (MOVDconst [c])) -> (ADDI [c] x)
-(SUB x (MOVDconst [c])) && is32Bit(-c) -> (ADDI [-c] x)
+(SUB x (MOVDconst [c])) -> (ADDI [-c] x)
+(SEQZ (SUB <t> (MOVDconst [c]) x)) -> (SEQZ (ADDI <t> [-c] x))
+(SNEZ (SUB <t> (MOVDconst [c]) x)) -> (SNEZ (ADDI <t> [-c] x))
 (AND (MOVDconst [c]) x) -> (ANDI [c] x)
 (AND x (MOVDconst [c])) -> (ANDI [c] x)
 (OR  (MOVDconst [c]) x) -> (ORI [c] x)
@@ -435,12 +451,31 @@
 (MUL (MOVDconst [c]) x) && isPowerOfTwo(c) -> (SLLI [log2(c)] x)
 (MUL (MOVDconst [c]) x) && isPowerOfTwo(c) -> (SLLI [log2(c)] x)
 
+// remove redundant *const ops
+(ADDI [0]  x) -> x
+(ANDI [0]  _) -> (MOVDconst [0])
+(ANDI [-1] x) -> x
+(ORI  [0]  x) -> x
+(ORI  [-1] _) -> (MOVDconst [-1])
+(XORI [0]  x) -> x
+
 // generic constant folding
 (ADDI [c] (MOVDconst [d]))  -> (MOVDconst [c+d])
 (ADDI [c] (ADDI [d] x))     -> (ADDI [c+d] x)
 (SLLI [c] (MOVDconst [d]))  -> (MOVDconst [int64(d)<<uint64(c)])
 (SRLI [c] (MOVDconst [d]))  -> (MOVDconst [int64(uint64(d)>>uint64(c))])
 (SRAI [c] (MOVDconst [d]))  -> (MOVDconst [int64(d)>>uint64(c)])
+(ANDI [c] (MOVDconst [d]))  -> (MOVDconst [c&d])
+(ANDI [c] (ANDI [d] x))     -> (ANDI [c&d] x)
+(ORI  [c] (MOVDconst [d]))  -> (MOVDconst [c|d])
+(ORI  [c] (ORI [d] x))      -> (ORI [c|d] x)
+(XORI [c] (MOVDconst [d]))  -> (MOVDconst [c^d])
+(SLTIU [c] (MOVDconst [d])) && uint64(d) < uint64(c) -> (MOVDconst [1])
+(SLTIU [c] (MOVDconst [d])) && uint64(d) >= uint64(c) -> (MOVDconst [0])
+(SLTI [c] (MOVDconst [d])) && int64(d) < int64(c) -> (MOVDconst [1])
+(SLTI [c] (MOVDconst [d])) && int64(d) >= int64(c) -> (MOVDconst [0])
+(XORI [c] (XORI [d] x))     -> (XORI [c^d] x)
+(NEG (MOVDconst [c]))       -> (MOVDconst [-c])
 
 // Zeroing
 // TODO: more optimized zeroing, including attempting to use aligned accesses.
@@ -504,6 +539,7 @@
 (ConstNil) -> (MOVDconst [0])
 (ConstBool [b]) -> (MOVDconst [b])
 
+
 (Addr {sym} base) -> (MOVaddr {sym} base)
 
 // Conditional branches
@@ -545,6 +581,3 @@
 (DeferCall   [argwid]               mem) -> (CALLdefer   [argwid]               mem)
 (GoCall      [argwid]               mem) -> (CALLgo      [argwid]               mem)
 (InterCall   [argwid] entry         mem) -> (CALLinter   [argwid] entry         mem)
-
-// remove redundant *const ops
-(ADDI [0]  x) -> x
