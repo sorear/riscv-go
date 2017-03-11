@@ -1399,6 +1399,10 @@ const (
 	OpRISCVMOVHstore
 	OpRISCVMOVWstore
 	OpRISCVMOVDstore
+	OpRISCVMOVBstorezero
+	OpRISCVMOVHstorezero
+	OpRISCVMOVWstorezero
+	OpRISCVMOVDstorezero
 	OpRISCVSLL
 	OpRISCVSRA
 	OpRISCVSRL
@@ -17478,6 +17482,54 @@ var opcodeTable = [...]opInfo{
 		reg: regInfo{
 			inputs: []inputInfo{
 				{1, 1073741814},          // SP GP T0 T1 T2 S0 S1 A0 A1 A2 A3 A4 A5 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5
+				{0, 9223372037928517622}, // SP GP T0 T1 T2 S0 S1 A0 A1 A2 A3 A4 A5 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
+			},
+		},
+	},
+	{
+		name:           "MOVBstorezero",
+		auxType:        auxSymOff,
+		argLen:         2,
+		faultOnNilArg0: true,
+		asm:            riscv.AMOVB,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 9223372037928517622}, // SP GP T0 T1 T2 S0 S1 A0 A1 A2 A3 A4 A5 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
+			},
+		},
+	},
+	{
+		name:           "MOVHstorezero",
+		auxType:        auxSymOff,
+		argLen:         2,
+		faultOnNilArg0: true,
+		asm:            riscv.AMOVH,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 9223372037928517622}, // SP GP T0 T1 T2 S0 S1 A0 A1 A2 A3 A4 A5 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
+			},
+		},
+	},
+	{
+		name:           "MOVWstorezero",
+		auxType:        auxSymOff,
+		argLen:         2,
+		faultOnNilArg0: true,
+		asm:            riscv.AMOVW,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 9223372037928517622}, // SP GP T0 T1 T2 S0 S1 A0 A1 A2 A3 A4 A5 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
+			},
+		},
+	},
+	{
+		name:           "MOVDstorezero",
+		auxType:        auxSymOff,
+		argLen:         2,
+		faultOnNilArg0: true,
+		asm:            riscv.AMOV,
+		reg: regInfo{
+			inputs: []inputInfo{
 				{0, 9223372037928517622}, // SP GP T0 T1 T2 S0 S1 A0 A1 A2 A3 A4 A5 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
 			},
 		},

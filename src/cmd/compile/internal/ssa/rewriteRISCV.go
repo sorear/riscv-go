@@ -346,22 +346,30 @@ func rewriteValueRISCV(v *Value, config *Config) bool {
 		return rewriteValueRISCV_OpRISCVMOVBload(v, config)
 	case OpRISCVMOVBstore:
 		return rewriteValueRISCV_OpRISCVMOVBstore(v, config)
+	case OpRISCVMOVBstorezero:
+		return rewriteValueRISCV_OpRISCVMOVBstorezero(v, config)
 	case OpRISCVMOVDload:
 		return rewriteValueRISCV_OpRISCVMOVDload(v, config)
 	case OpRISCVMOVDstore:
 		return rewriteValueRISCV_OpRISCVMOVDstore(v, config)
+	case OpRISCVMOVDstorezero:
+		return rewriteValueRISCV_OpRISCVMOVDstorezero(v, config)
 	case OpRISCVMOVHUload:
 		return rewriteValueRISCV_OpRISCVMOVHUload(v, config)
 	case OpRISCVMOVHload:
 		return rewriteValueRISCV_OpRISCVMOVHload(v, config)
 	case OpRISCVMOVHstore:
 		return rewriteValueRISCV_OpRISCVMOVHstore(v, config)
+	case OpRISCVMOVHstorezero:
+		return rewriteValueRISCV_OpRISCVMOVHstorezero(v, config)
 	case OpRISCVMOVWUload:
 		return rewriteValueRISCV_OpRISCVMOVWUload(v, config)
 	case OpRISCVMOVWload:
 		return rewriteValueRISCV_OpRISCVMOVWload(v, config)
 	case OpRISCVMOVWstore:
 		return rewriteValueRISCV_OpRISCVMOVWstore(v, config)
+	case OpRISCVMOVWstorezero:
+		return rewriteValueRISCV_OpRISCVMOVWstorezero(v, config)
 	case OpRsh16Ux16:
 		return rewriteValueRISCV_OpRsh16Ux16(v, config)
 	case OpRsh16Ux32:
@@ -3739,6 +3747,80 @@ func rewriteValueRISCV_OpRISCVMOVBstore(v *Value, config *Config) bool {
 		v.AddArg(mem)
 		return true
 	}
+	// match: (MOVBstore [off] {sym} ptr (MOVDconst [0]) mem)
+	// cond:
+	// result: (MOVBstorezero [off] {sym} ptr mem)
+	for {
+		off := v.AuxInt
+		sym := v.Aux
+		ptr := v.Args[0]
+		v_1 := v.Args[1]
+		if v_1.Op != OpRISCVMOVDconst {
+			break
+		}
+		if v_1.AuxInt != 0 {
+			break
+		}
+		mem := v.Args[2]
+		v.reset(OpRISCVMOVBstorezero)
+		v.AuxInt = off
+		v.Aux = sym
+		v.AddArg(ptr)
+		v.AddArg(mem)
+		return true
+	}
+	return false
+}
+func rewriteValueRISCV_OpRISCVMOVBstorezero(v *Value, config *Config) bool {
+	b := v.Block
+	_ = b
+	// match: (MOVBstorezero [off1] {sym1} (MOVaddr [off2] {sym2} base) mem)
+	// cond: is32Bit(off1+off2) && canMergeSym(sym1, sym2)
+	// result: (MOVBstorezero [off1+off2] {mergeSym(sym1,sym2)} base mem)
+	for {
+		off1 := v.AuxInt
+		sym1 := v.Aux
+		v_0 := v.Args[0]
+		if v_0.Op != OpRISCVMOVaddr {
+			break
+		}
+		off2 := v_0.AuxInt
+		sym2 := v_0.Aux
+		base := v_0.Args[0]
+		mem := v.Args[1]
+		if !(is32Bit(off1+off2) && canMergeSym(sym1, sym2)) {
+			break
+		}
+		v.reset(OpRISCVMOVBstorezero)
+		v.AuxInt = off1 + off2
+		v.Aux = mergeSym(sym1, sym2)
+		v.AddArg(base)
+		v.AddArg(mem)
+		return true
+	}
+	// match: (MOVBstorezero [off1] {sym} (ADDI [off2] base) mem)
+	// cond: is32Bit(off1+off2)
+	// result: (MOVBstorezero [off1+off2] {sym} base mem)
+	for {
+		off1 := v.AuxInt
+		sym := v.Aux
+		v_0 := v.Args[0]
+		if v_0.Op != OpRISCVADDI {
+			break
+		}
+		off2 := v_0.AuxInt
+		base := v_0.Args[0]
+		mem := v.Args[1]
+		if !(is32Bit(off1 + off2)) {
+			break
+		}
+		v.reset(OpRISCVMOVBstorezero)
+		v.AuxInt = off1 + off2
+		v.Aux = sym
+		v.AddArg(base)
+		v.AddArg(mem)
+		return true
+	}
 	return false
 }
 func rewriteValueRISCV_OpRISCVMOVDload(v *Value, config *Config) bool {
@@ -3844,6 +3926,80 @@ func rewriteValueRISCV_OpRISCVMOVDstore(v *Value, config *Config) bool {
 		v.Aux = sym
 		v.AddArg(base)
 		v.AddArg(val)
+		v.AddArg(mem)
+		return true
+	}
+	// match: (MOVDstore [off] {sym} ptr (MOVDconst [0]) mem)
+	// cond:
+	// result: (MOVDstorezero [off] {sym} ptr mem)
+	for {
+		off := v.AuxInt
+		sym := v.Aux
+		ptr := v.Args[0]
+		v_1 := v.Args[1]
+		if v_1.Op != OpRISCVMOVDconst {
+			break
+		}
+		if v_1.AuxInt != 0 {
+			break
+		}
+		mem := v.Args[2]
+		v.reset(OpRISCVMOVDstorezero)
+		v.AuxInt = off
+		v.Aux = sym
+		v.AddArg(ptr)
+		v.AddArg(mem)
+		return true
+	}
+	return false
+}
+func rewriteValueRISCV_OpRISCVMOVDstorezero(v *Value, config *Config) bool {
+	b := v.Block
+	_ = b
+	// match: (MOVDstorezero [off1] {sym1} (MOVaddr [off2] {sym2} base) mem)
+	// cond: is32Bit(off1+off2) && canMergeSym(sym1, sym2)
+	// result: (MOVDstorezero [off1+off2] {mergeSym(sym1,sym2)} base mem)
+	for {
+		off1 := v.AuxInt
+		sym1 := v.Aux
+		v_0 := v.Args[0]
+		if v_0.Op != OpRISCVMOVaddr {
+			break
+		}
+		off2 := v_0.AuxInt
+		sym2 := v_0.Aux
+		base := v_0.Args[0]
+		mem := v.Args[1]
+		if !(is32Bit(off1+off2) && canMergeSym(sym1, sym2)) {
+			break
+		}
+		v.reset(OpRISCVMOVDstorezero)
+		v.AuxInt = off1 + off2
+		v.Aux = mergeSym(sym1, sym2)
+		v.AddArg(base)
+		v.AddArg(mem)
+		return true
+	}
+	// match: (MOVDstorezero [off1] {sym} (ADDI [off2] base) mem)
+	// cond: is32Bit(off1+off2)
+	// result: (MOVDstorezero [off1+off2] {sym} base mem)
+	for {
+		off1 := v.AuxInt
+		sym := v.Aux
+		v_0 := v.Args[0]
+		if v_0.Op != OpRISCVADDI {
+			break
+		}
+		off2 := v_0.AuxInt
+		base := v_0.Args[0]
+		mem := v.Args[1]
+		if !(is32Bit(off1 + off2)) {
+			break
+		}
+		v.reset(OpRISCVMOVDstorezero)
+		v.AuxInt = off1 + off2
+		v.Aux = sym
+		v.AddArg(base)
 		v.AddArg(mem)
 		return true
 	}
@@ -4007,6 +4163,80 @@ func rewriteValueRISCV_OpRISCVMOVHstore(v *Value, config *Config) bool {
 		v.AddArg(mem)
 		return true
 	}
+	// match: (MOVHstore [off] {sym} ptr (MOVDconst [0]) mem)
+	// cond:
+	// result: (MOVHstorezero [off] {sym} ptr mem)
+	for {
+		off := v.AuxInt
+		sym := v.Aux
+		ptr := v.Args[0]
+		v_1 := v.Args[1]
+		if v_1.Op != OpRISCVMOVDconst {
+			break
+		}
+		if v_1.AuxInt != 0 {
+			break
+		}
+		mem := v.Args[2]
+		v.reset(OpRISCVMOVHstorezero)
+		v.AuxInt = off
+		v.Aux = sym
+		v.AddArg(ptr)
+		v.AddArg(mem)
+		return true
+	}
+	return false
+}
+func rewriteValueRISCV_OpRISCVMOVHstorezero(v *Value, config *Config) bool {
+	b := v.Block
+	_ = b
+	// match: (MOVHstorezero [off1] {sym1} (MOVaddr [off2] {sym2} base) mem)
+	// cond: is32Bit(off1+off2) && canMergeSym(sym1, sym2)
+	// result: (MOVHstorezero [off1+off2] {mergeSym(sym1,sym2)} base mem)
+	for {
+		off1 := v.AuxInt
+		sym1 := v.Aux
+		v_0 := v.Args[0]
+		if v_0.Op != OpRISCVMOVaddr {
+			break
+		}
+		off2 := v_0.AuxInt
+		sym2 := v_0.Aux
+		base := v_0.Args[0]
+		mem := v.Args[1]
+		if !(is32Bit(off1+off2) && canMergeSym(sym1, sym2)) {
+			break
+		}
+		v.reset(OpRISCVMOVHstorezero)
+		v.AuxInt = off1 + off2
+		v.Aux = mergeSym(sym1, sym2)
+		v.AddArg(base)
+		v.AddArg(mem)
+		return true
+	}
+	// match: (MOVHstorezero [off1] {sym} (ADDI [off2] base) mem)
+	// cond: is32Bit(off1+off2)
+	// result: (MOVHstorezero [off1+off2] {sym} base mem)
+	for {
+		off1 := v.AuxInt
+		sym := v.Aux
+		v_0 := v.Args[0]
+		if v_0.Op != OpRISCVADDI {
+			break
+		}
+		off2 := v_0.AuxInt
+		base := v_0.Args[0]
+		mem := v.Args[1]
+		if !(is32Bit(off1 + off2)) {
+			break
+		}
+		v.reset(OpRISCVMOVHstorezero)
+		v.AuxInt = off1 + off2
+		v.Aux = sym
+		v.AddArg(base)
+		v.AddArg(mem)
+		return true
+	}
 	return false
 }
 func rewriteValueRISCV_OpRISCVMOVWUload(v *Value, config *Config) bool {
@@ -4164,6 +4394,80 @@ func rewriteValueRISCV_OpRISCVMOVWstore(v *Value, config *Config) bool {
 		v.Aux = sym
 		v.AddArg(base)
 		v.AddArg(val)
+		v.AddArg(mem)
+		return true
+	}
+	// match: (MOVWstore [off] {sym} ptr (MOVDconst [0]) mem)
+	// cond:
+	// result: (MOVWstorezero [off] {sym} ptr mem)
+	for {
+		off := v.AuxInt
+		sym := v.Aux
+		ptr := v.Args[0]
+		v_1 := v.Args[1]
+		if v_1.Op != OpRISCVMOVDconst {
+			break
+		}
+		if v_1.AuxInt != 0 {
+			break
+		}
+		mem := v.Args[2]
+		v.reset(OpRISCVMOVWstorezero)
+		v.AuxInt = off
+		v.Aux = sym
+		v.AddArg(ptr)
+		v.AddArg(mem)
+		return true
+	}
+	return false
+}
+func rewriteValueRISCV_OpRISCVMOVWstorezero(v *Value, config *Config) bool {
+	b := v.Block
+	_ = b
+	// match: (MOVWstorezero [off1] {sym1} (MOVaddr [off2] {sym2} base) mem)
+	// cond: is32Bit(off1+off2) && canMergeSym(sym1, sym2)
+	// result: (MOVWstorezero [off1+off2] {mergeSym(sym1,sym2)} base mem)
+	for {
+		off1 := v.AuxInt
+		sym1 := v.Aux
+		v_0 := v.Args[0]
+		if v_0.Op != OpRISCVMOVaddr {
+			break
+		}
+		off2 := v_0.AuxInt
+		sym2 := v_0.Aux
+		base := v_0.Args[0]
+		mem := v.Args[1]
+		if !(is32Bit(off1+off2) && canMergeSym(sym1, sym2)) {
+			break
+		}
+		v.reset(OpRISCVMOVWstorezero)
+		v.AuxInt = off1 + off2
+		v.Aux = mergeSym(sym1, sym2)
+		v.AddArg(base)
+		v.AddArg(mem)
+		return true
+	}
+	// match: (MOVWstorezero [off1] {sym} (ADDI [off2] base) mem)
+	// cond: is32Bit(off1+off2)
+	// result: (MOVWstorezero [off1+off2] {sym} base mem)
+	for {
+		off1 := v.AuxInt
+		sym := v.Aux
+		v_0 := v.Args[0]
+		if v_0.Op != OpRISCVADDI {
+			break
+		}
+		off2 := v_0.AuxInt
+		base := v_0.Args[0]
+		mem := v.Args[1]
+		if !(is32Bit(off1 + off2)) {
+			break
+		}
+		v.reset(OpRISCVMOVWstorezero)
+		v.AuxInt = off1 + off2
+		v.Aux = sym
+		v.AddArg(base)
 		v.AddArg(mem)
 		return true
 	}
