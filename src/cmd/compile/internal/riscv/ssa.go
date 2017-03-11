@@ -326,6 +326,13 @@ func ssaGenValue(s *gc.SSAGenState, v *ssa.Value) {
 		gc.AddAux(&p.From, v)
 		p.To.Type = obj.TYPE_REG
 		p.To.Reg = v.Reg()
+	case ssa.OpRISCVMOVBstorezero, ssa.OpRISCVMOVHstorezero, ssa.OpRISCVMOVWstorezero, ssa.OpRISCVMOVDstorezero:
+		p := gc.Prog(v.Op.Asm())
+		p.From.Type = obj.TYPE_REG
+		p.From.Reg = riscv.REG_ZERO
+		p.To.Type = obj.TYPE_MEM
+		p.To.Reg = v.Args[0].Reg()
+		gc.AddAux(&p.To, v)
 	case ssa.OpRISCVMOVBstore, ssa.OpRISCVMOVHstore, ssa.OpRISCVMOVWstore, ssa.OpRISCVMOVDstore,
 		ssa.OpRISCVFMOVWstore, ssa.OpRISCVFMOVDstore:
 		p := gc.Prog(v.Op.Asm())
