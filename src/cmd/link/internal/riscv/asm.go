@@ -64,10 +64,7 @@ func machoreloc1(s *ld.Symbol, r *ld.Reloc, sectoff int64) int {
 
 func archreloc(ctxt *ld.Link, r *ld.Reloc, s *ld.Symbol, val *int64) int {
 	switch r.Type {
-	case obj.R_CALLRISCV:
-		// Nothing to do.
-
-	case obj.R_RISCV_PCREL_ITYPE, obj.R_RISCV_PCREL_STYPE:
+	case obj.R_RISCV_PCREL_ITYPE, obj.R_RISCV_PCREL_STYPE, obj.R_CALLRISCV:
 		pc := s.Value + int64(r.Off)
 		off := ld.Symaddr(r.Sym) + r.Add - pc
 
@@ -86,7 +83,7 @@ func archreloc(ctxt *ld.Link, r *ld.Reloc, s *ld.Symbol, val *int64) int {
 
 		var secondImm, secondImmMask int64
 		switch r.Type {
-		case obj.R_RISCV_PCREL_ITYPE:
+		case obj.R_RISCV_PCREL_ITYPE, obj.R_CALLRISCV:
 			secondImmMask = riscv.ITypeImmMask
 			secondImm, err = riscv.EncodeIImmediate(low)
 			if err != nil {

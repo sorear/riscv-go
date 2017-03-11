@@ -350,12 +350,12 @@ nilctxt:
 // func jmpdefer(fv *funcval, argp uintptr)
 // called from deferreturn
 // 1. grab stored LR for caller
-// 2. sub 12 bytes to get back to JAL deferreturn
+// 2. sub 8 bytes to get back to AUIPC+JALR deferreturn
 // 3. JMP to fn
-// TODO(sorear): there are shorter jump sequences, this function will need to be updated when we use them
+// TODO(sorear): if/when linker relaxation is implemented it needs to bypass this
 TEXT runtime·jmpdefer(SB), NOSPLIT, $-8-16
 	MOV	0(X2), RA
-	ADD	$-12, RA
+	ADD	$-8, RA
 
 	MOV	fv+0(FP), CTXT
 	MOV	argp+8(FP), X2

@@ -122,24 +122,13 @@ func jalrToSym(ctxt *obj.Link, p *obj.Prog, lr int16) *obj.Prog {
 	p.From = obj.Addr{Type: obj.TYPE_CONST, Offset: to.Offset, Sym: to.Sym}
 	p.From3 = &obj.Addr{}
 	p.To = obj.Addr{Type: obj.TYPE_REG, Reg: REG_TMP}
-	p.Mark |= NEED_PCREL_ITYPE_RELOC
-	p = obj.Appendp(ctxt, p)
-
-	p.As = AADDI
-	p.From = obj.Addr{Type: obj.TYPE_CONST}
-	p.From3 = &obj.Addr{Type: obj.TYPE_REG, Reg: REG_TMP}
-	p.To = obj.Addr{Type: obj.TYPE_REG, Reg: REG_TMP}
+	p.Mark |= NEED_CALL_RELOC
 	p = obj.Appendp(ctxt, p)
 
 	p.As = AJALR
-	p.From.Type = obj.TYPE_REG
-	p.From.Reg = lr
-	// Leave Sym only for the CALL reloc in assemble.
-	p.From.Sym = to.Sym
-	p.From3 = &obj.Addr{}
-	p.To.Type = obj.TYPE_REG
-	p.To.Reg = REG_TMP
-	lowerjalr(p)
+	p.From = obj.Addr{Type: obj.TYPE_CONST}
+	p.From3 = &obj.Addr{Type: obj.TYPE_REG, Reg: REG_TMP}
+	p.To = obj.Addr{Type: obj.TYPE_REG, Reg: lr}
 
 	return p
 }
@@ -1814,24 +1803,14 @@ func assemble(ctxt *obj.Link, cursym *obj.LSym) {
 	var symcode []uint32 // machine code for this symbol
 	for p := cursym.Text; p != nil; p = p.Link {
 		switch p.As {
-		case AJALR:
-			if p.To.Sym != nil {
-				// This is a CALL/JMP. We add a relocation only
-				// for linker stack checking. No actual
-				// relocation is needed.
-				rel := obj.Addrel(cursym)
-				rel.Off = int32(p.Pc)
-				rel.Siz = 4
-				rel.Sym = p.To.Sym
-				rel.Add = p.To.Offset
-				rel.Type = obj.R_CALLRISCV
-			}
 		case AAUIPC:
 			var t obj.RelocType
 			if p.Mark&NEED_PCREL_ITYPE_RELOC == NEED_PCREL_ITYPE_RELOC {
 				t = obj.R_RISCV_PCREL_ITYPE
 			} else if p.Mark&NEED_PCREL_STYPE_RELOC == NEED_PCREL_STYPE_RELOC {
 				t = obj.R_RISCV_PCREL_STYPE
+			} else if p.Mark&NEED_CALL_RELOC == NEED_CALL_RELOC {
+				t = obj.R_CALLRISCV
 			} else {
 				break
 			}
