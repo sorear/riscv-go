@@ -88,10 +88,10 @@
 (Xor16 x y) -> (XOR x y)
 (Xor8  x y) -> (XOR x y)
 
-(Neg64 x) -> (SUB (MOVDconst) x)
-(Neg32 x) -> (SUB (MOVDconst) x)
-(Neg16 x) -> (SUB (MOVDconst) x)
-(Neg8  x) -> (SUB (MOVDconst) x)
+(Neg64 x) -> (NEG x)
+(Neg32 x) -> (NEG x)
+(Neg16 x) -> (NEG x)
+(Neg8  x) -> (NEG x)
 (Neg32F x) -> (FNEGS x)
 (Neg64F x) -> (FNEGD x)
 
@@ -139,12 +139,9 @@
 // From genericOps.go:
 // "0 if arg0 == 0, -1 if arg0 > 0, undef if arg0<0"
 //
-// Like other arches, we compute ~((x-1) >> 63), with arithmetic right shift.
-// For positive x, bit 63 of x-1 is always 0, so the result is -1.
-// For zero x, bit 63 of x-1 is 1, so the result is 0.
-//
-// TODO(prattmic): Use XORconst etc instead of XOR (MOVDconst).
-(Slicemask <t> x) -> (XOR (MOVDconst [-1]) (SRA <t> (SUB <t> x (MOVDconst [1])) (MOVDconst [63])))
+// We compute -(arg0 != 0)
+
+(Slicemask <t> x) -> (NEG (SNEZ <t> x))
 
 // Truncations
 // We ignore the unused high parts of registers, so truncates are just copies.
@@ -414,6 +411,29 @@
 // Similarly, fold ADDI into MOVaddr to avoid confusing live variable analysis
 // with OffPtr -> ADDI.
 (ADDI [c] (MOVaddr [d] {s} x)) && is32Bit(c+d) -> (MOVaddr [c+d] {s} x)
+
+// fold constant into arithmatic ops
+(ADD (MOVDconst [c]) x) -> (ADDI [c] x)
+(ADD x (MOVDconst [c])) -> (ADDI [c] x)
+(SUB x (MOVDconst [c])) && is32Bit(-c) -> (ADDI [-c] x)
+(AND (MOVDconst [c]) x) -> (ANDI [c] x)
+(AND x (MOVDconst [c])) -> (ANDI [c] x)
+(OR  (MOVDconst [c]) x) -> (ORI [c] x)
+(OR  x (MOVDconst [c])) -> (ORI [c] x)
+(XOR (MOVDconst [c]) x) -> (XORI [c] x)
+(XOR x (MOVDconst [c])) -> (XORI [c] x)
+
+// mul by constant
+(MUL x (MOVDconst [-1])) -> (NEG x)
+(MUL _ (MOVDconst [0])) -> (MOVDconst [0])
+(MUL x (MOVDconst [1])) -> x
+(MUL x (MOVDconst [c])) && isPowerOfTwo(c) -> (SLLI [log2(c)] x)
+
+(MUL (MOVDconst [-1]) x) -> (NEG x)
+(MUL (MOVDconst [0]) _) -> (MOVDconst [0])
+(MUL (MOVDconst [1]) x) -> x
+(MUL (MOVDconst [c]) x) && isPowerOfTwo(c) -> (SLLI [log2(c)] x)
+(MUL (MOVDconst [c]) x) && isPowerOfTwo(c) -> (SLLI [log2(c)] x)
 
 // generic constant folding
 (ADDI [c] (MOVDconst [d]))  -> (MOVDconst [c+d])
