@@ -327,7 +327,7 @@ func isRuntimeDepPkg(pkg string) bool {
 // detect too-far jumps in function s, and add trampolines if necessary
 // ARM supports trampoline insertion for internal and external linking
 // PPC64 & PPC64LE support trampoline insertion for internal linking only
-func trampoline(ctxt *Link, s *Symbol) {
+func trampoline(ctxt *Link, s *Symbol, first bool) {
 	if Thearch.Trampoline == nil {
 		return // no need or no support of trampolines on this arch
 	}
@@ -348,6 +348,16 @@ func trampoline(ctxt *Link, s *Symbol) {
 				}
 				// runtime and its dependent packages may call to each other.
 				// they are fine, as they will be laid down together.
+			}
+
+			// RISC-V has a very short direct branch limit (1 MiB) and
+			// needs iterative trampoline insertion to link
+			// cmd/compile/internal/ssa; check this again later when the
+			// symbol has been assigned(?).
+			if first {
+				ctxt.retramp = true
+			} else {
+				Errorf(s, "direct jump to undefined non-import symbol %s", r.Sym)
 			}
 			continue
 		}
@@ -2039,44 +2049,59 @@ func (ctxt *Link) textaddress() {
 	if Headtype == obj.Hwindows || Headtype == obj.Hwindowsgui {
 		ctxt.Syms.Lookup(".text", 0).Sect = sect
 	}
-	va := uint64(*FlagTextAddr)
-	n := 1
-	sect.Vaddr = va
-	ntramps := 0
-	for _, sym := range ctxt.Textp {
-		sect, n, va = assignAddress(ctxt, sect, n, sym, va)
 
-		trampoline(ctxt, sym) // resolve jumps, may add trampolines if jump too far
-
-		// lay down trampolines after each function
-		for ; ntramps < len(ctxt.tramps); ntramps++ {
-			tramp := ctxt.tramps[ntramps]
-			sect, n, va = assignAddress(ctxt, sect, n, tramp, va)
-		}
-	}
-
-	sect.Length = va - sect.Vaddr
-	ctxt.Syms.Lookup("runtime.etext", 0).Sect = sect
-
-	// merge tramps into Textp, keeping Textp in address order
-	if ntramps != 0 {
-		newtextp := make([]*Symbol, 0, len(ctxt.Textp)+ntramps)
-		i := 0
+	ctxt.retramp = true
+	first := true
+	for ctxt.retramp {
+		ctxt.retramp = false
+		ctxt.tramps = nil
+		va := uint64(*FlagTextAddr)
+		n := 1
+		sect.Vaddr = va
+		ntramps := 0
 		for _, sym := range ctxt.Textp {
-			for ; i < ntramps && ctxt.tramps[i].Value < sym.Value; i++ {
-				newtextp = append(newtextp, ctxt.tramps[i])
-			}
-			newtextp = append(newtextp, sym)
-		}
-		newtextp = append(newtextp, ctxt.tramps[i:ntramps]...)
+			sect, n, va = assignAddress(ctxt, sect, n, sym, va)
 
-		ctxt.Textp = newtextp
+			trampoline(ctxt, sym, first) // resolve jumps, may add trampolines if jump too far
+
+			// lay down trampolines after each function
+			for ; ntramps < len(ctxt.tramps); ntramps++ {
+				tramp := ctxt.tramps[ntramps]
+				sect, n, va = assignAddress(ctxt, sect, n, tramp, va)
+			}
+		}
+
+		sect.Length = va - sect.Vaddr
+		ctxt.Syms.Lookup("runtime.etext", 0).Sect = sect
+
+		// merge tramps into Textp, keeping Textp in address order
+		if ntramps != 0 {
+			newtextp := make([]*Symbol, 0, len(ctxt.Textp)+ntramps)
+			i := 0
+			for _, sym := range ctxt.Textp {
+				for ; i < ntramps && ctxt.tramps[i].Value < sym.Value; i++ {
+					newtextp = append(newtextp, ctxt.tramps[i])
+				}
+				newtextp = append(newtextp, sym)
+			}
+			newtextp = append(newtextp, ctxt.tramps[i:ntramps]...)
+
+			ctxt.Textp = newtextp
+		}
+
+		if !Thearch.TrampsIterate {
+			break
+		}
+		// NOTE: TrampsIterate is not used on ppc64, so sect does not actually change in this loop
+		first = false // don't infinite loop on missing symbols
 	}
 }
 
 // assigns address for a text symbol, returns (possibly new) section, its number, and the address
 // Note: once we have trampoline insertion support for external linking, this function
 // will not need to create new text sections, and so no need to return sect and n.
+//
+// May be called multiple times when using iterative trampoline generation.
 func assignAddress(ctxt *Link, sect *Section, n int, sym *Symbol, va uint64) (*Section, int, uint64) {
 	sym.Sect = sect
 	if sym.Type&obj.SSUB != 0 {
@@ -2087,9 +2112,9 @@ func assignAddress(ctxt *Link, sect *Section, n int, sym *Symbol, va uint64) (*S
 	} else {
 		va = uint64(Rnd(int64(va), int64(Funcalign)))
 	}
-	sym.Value = 0
+	delta := int64(va) - sym.Value
 	for sub := sym; sub != nil; sub = sub.Sub {
-		sub.Value += int64(va)
+		sub.Value += delta
 	}
 
 	funcsize := uint64(MINFUNC) // spacing required for findfunctab
@@ -2348,7 +2373,9 @@ func (ctxt *Link) AddTramp(s *Symbol) {
 	s.Type = obj.STEXT
 	s.Attr |= AttrReachable
 	s.Attr |= AttrOnList
+	s.Attr |= AttrTrampoline
 	ctxt.tramps = append(ctxt.tramps, s)
+	ctxt.retramp = true
 	if *FlagDebugTramp > 0 && ctxt.Debugvlog > 0 {
 		ctxt.Logf("trampoline %s inserted\n", s)
 	}
