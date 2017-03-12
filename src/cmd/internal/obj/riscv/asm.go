@@ -380,17 +380,21 @@ type poolReq struct {
 //
 // p is overwritten with the load sequence and the Prog returned is an empty Prog following its end.
 // Returns small = true and does not change the program if the immediate was small.
-func loadImmIntoRegTmp(ctxt *obj.Link, pool *[]poolReq, p *obj.Prog, value int64) (np *obj.Prog, small bool) {
+//
+// If small is true and reconstructing the value can be done with a single _full width_ addi, then
+// defer that addi so that it can be fused with a memory op.
+func loadImmIntoRegTmp(ctxt *obj.Link, pool *[]poolReq, p *obj.Prog, value int64, split bool) (np *obj.Prog, augment int64, small bool) {
 	if immFits(value, 12) {
-		return p, true // no need to split
+		return p, 0, true // no need to split
 	}
 
 	np = obj.Appendp(ctxt, p)
-	replaceWithLoadImm(ctxt, pool, p, REG_TMP, value)
-	return np, false
+	augment = replaceWithLoadImm(ctxt, pool, p, REG_TMP, value, split)
+	small = false
+	return
 }
 
-func replaceWithLoadImm(ctxt *obj.Link, pool *[]poolReq, p *obj.Prog, into int16, value int64) {
+func replaceWithLoadImm(ctxt *obj.Link, pool *[]poolReq, p *obj.Prog, into int16, value int64, split bool) (augment int64) {
 	if into == REG_ZERO {
 		// the constant pool code will malfunction if you do this, so make sure it doesn't get used
 		value = 0
@@ -415,7 +419,7 @@ func replaceWithLoadImm(ctxt *obj.Link, pool *[]poolReq, p *obj.Prog, into int16
 		p.From = obj.Addr{Type: obj.TYPE_CONST, Offset: high}
 		p.From3 = nil
 		p.To = obj.Addr{Type: obj.TYPE_REG, Reg: into}
-		if low != 0 {
+		if low != 0 && (!split || high == -1<<19) {
 			p = obj.Appendp(ctxt, p)
 
 			p.As = AADDI
@@ -426,6 +430,8 @@ func replaceWithLoadImm(ctxt *obj.Link, pool *[]poolReq, p *obj.Prog, into int16
 			p.From = obj.Addr{Type: obj.TYPE_CONST, Offset: low}
 			p.From3 = &obj.Addr{Type: obj.TYPE_REG, Reg: into}
 			p.To = obj.Addr{Type: obj.TYPE_REG, Reg: into}
+		} else {
+			augment = low
 		}
 	} else {
 		p.As = AADDI
@@ -433,6 +439,7 @@ func replaceWithLoadImm(ctxt *obj.Link, pool *[]poolReq, p *obj.Prog, into int16
 		p.From3 = &obj.Addr{Type: obj.TYPE_REG, Reg: REG_ZERO}
 		p.To = obj.Addr{Type: obj.TYPE_REG, Reg: into}
 	}
+	return
 }
 
 var deferreturn *obj.LSym
@@ -708,7 +715,7 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 				if p.As != AMOV || p.To.Type != obj.TYPE_REG {
 					ctxt.Diag("progedit: unsupported constant load at %v", p)
 				}
-				replaceWithLoadImm(ctxt, &constPool, p, p.To.Reg, p.From.Offset)
+				replaceWithLoadImm(ctxt, &constPool, p, p.To.Reg, p.From.Offset, false)
 			case obj.TYPE_ADDR: // MOV $sym+off(SP/SB), R
 				if p.To.Type != obj.TYPE_REG || p.As != AMOV {
 					ctxt.Diag("progedit: unsupported addr MOV at %v", p)
@@ -842,7 +849,7 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 			// ADDI $low, TMP, TMP
 			// <op> TMP, FROM3, TO
 			q := *p
-			p, small := loadImmIntoRegTmp(ctxt, &constPool, p, p.From.Offset)
+			p, _, small := loadImmIntoRegTmp(ctxt, &constPool, p, p.From.Offset, false)
 			if small {
 				break
 			}
@@ -873,7 +880,7 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 			// LUI $high, TMP
 			// ADDI $low, TMP, TMP
 			q := *p
-			p, small := loadImmIntoRegTmp(ctxt, &constPool, p, p.From.Offset)
+			p, aug, small := loadImmIntoRegTmp(ctxt, &constPool, p, p.From.Offset, true)
 			if small {
 				break
 			}
@@ -890,7 +897,7 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 
 				p.As = q.As
 				p.To = q.To
-				p.From = obj.Addr{Type: obj.TYPE_CONST, Offset: 0}
+				p.From = obj.Addr{Type: obj.TYPE_CONST, Offset: aug}
 				p.From3 = &obj.Addr{Type: obj.TYPE_REG, Reg: REG_TMP}
 			case ASD, ASB, ASH, ASW:
 				// ADD TMP, TO, TMP
@@ -904,7 +911,7 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 				p.As = q.As
 				p.From3 = q.From3
 				p.To = obj.Addr{Type: obj.TYPE_REG, Reg: REG_TMP}
-				p.From = obj.Addr{Type: obj.TYPE_CONST, Offset: 0}
+				p.From = obj.Addr{Type: obj.TYPE_CONST, Offset: aug}
 			}
 		}
 	}
