@@ -106,6 +106,7 @@ const (
 	AttrLocal
 	AttrReflectMethod
 	AttrMakeTypelink
+	AttrTrampoline
 )
 
 func (a Attribute) DuplicateOK() bool      { return a&AttrDuplicateOK != 0 }
@@ -192,7 +193,8 @@ type Link struct {
 	Filesyms   []*Symbol
 	Moduledata *Symbol
 
-	tramps []*Symbol // trampolines
+	tramps  []*Symbol // trampolines
+	retramp bool      // if true, trampolines need to be recalculated
 }
 
 // The smallest possible offset from the hardware stack pointer to a local
