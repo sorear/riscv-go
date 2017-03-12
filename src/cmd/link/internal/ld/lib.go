@@ -101,6 +101,7 @@ type Arch struct {
 	Archreloc        func(*Link, *Reloc, *Symbol, *int64) int
 	Archrelocvariant func(*Link, *Reloc, *Symbol, int64) int64
 	Trampoline       func(*Link, *Reloc, *Symbol)
+	TrampsIterate    bool
 	Asmb             func(*Link)
 	Elfreloc1        func(*Link, *Reloc, int64) int
 	Elfsetupplt      func(*Link)
