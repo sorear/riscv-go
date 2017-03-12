@@ -27,9 +27,15 @@ func init() {
 		return mask
 	}
 
-	// General purpose registers.
+	// General purpose registers.  Allocate 8-15 first because they have shorter encodings.
+	for r := riscv.REG_X8; r <= riscv.REG_X15; r++ {
+		mask := addreg(r, "")
+		gpMask |= mask
+		gpspMask |= mask
+		gpspsbMask |= mask
+	}
 	for r := riscv.REG_X0; r <= riscv.REG_X31; r++ {
-		if r == riscv.REG_RA {
+		if r == riscv.REG_RA || (r >= riscv.REG_X8 && r <= riscv.REG_X15) {
 			// RA is not used by regalloc, so we skip it to leave
 			// room for pseudo-register SB.
 			continue
@@ -52,7 +58,14 @@ func init() {
 	}
 
 	// Floating pointer registers.
+	for r := riscv.REG_F8; r <= riscv.REG_F15; r++ {
+		mask := addreg(r, "")
+		fpMask |= mask
+	}
 	for r := riscv.REG_F0; r <= riscv.REG_F31; r++ {
+		if r >= riscv.REG_F8 && r <= riscv.REG_F15 {
+			continue
+		}
 		mask := addreg(r, "")
 		fpMask |= mask
 	}
