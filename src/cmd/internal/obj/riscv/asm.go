@@ -483,8 +483,10 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 		saveRA = false
 	}
 	if saveRA {
-		stacksize += 8
+		stacksize += int64(ctxt.Arch.PtrSize)
 	}
+	// RVC wants stack offsets divisible by 16 (regardless of pointer size)
+	stacksize = (stacksize + 15) &^ 15
 
 	cursym.Args = text.To.Val.(int32)
 	cursym.Locals = int32(stacksize)
