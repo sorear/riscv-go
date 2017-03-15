@@ -6961,12 +6961,13 @@ func rewriteValueRISCV_OpSlicemask(v *Value, config *Config) bool {
 	_ = b
 	// match: (Slicemask <t> x)
 	// cond:
-	// result: (NEG (SNEZ <t> x))
+	// result: (ADDI [-1] (SEQZ <t> x))
 	for {
 		t := v.Type
 		x := v.Args[0]
-		v.reset(OpRISCVNEG)
-		v0 := b.NewValue0(v.Pos, OpRISCVSNEZ, t)
+		v.reset(OpRISCVADDI)
+		v.AuxInt = -1
+		v0 := b.NewValue0(v.Pos, OpRISCVSEQZ, t)
 		v0.AddArg(x)
 		v.AddArg(v0)
 		return true

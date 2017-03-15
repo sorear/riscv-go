@@ -141,7 +141,7 @@
 //
 // We compute -(arg0 != 0)
 
-(Slicemask <t> x) -> (NEG (SNEZ <t> x))
+(Slicemask <t> x) -> (ADDI [-1] (SEQZ <t> x))
 
 // Truncations
 // We ignore the unused high parts of registers, so truncates are just copies.
