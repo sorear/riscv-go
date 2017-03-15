@@ -181,6 +181,9 @@ func ssaGenValue(s *gc.SSAGenState, v *ssa.Value) {
 		r := v.Reg()
 		r1 := v.Args[0].Reg()
 		r2 := v.Args[1].Reg()
+		if r2 == r && (v.Op == ssa.OpRISCVADD || v.Op == ssa.OpRISCVXOR || v.Op == ssa.OpRISCVOR || v.Op == ssa.OpRISCVAND /* || v.Op == ssa.OpRISCVADDW */) {
+			r1, r2 = r2, r1 // code is more compact if rd = rs1
+		}
 		p := gc.Prog(v.Op.Asm())
 		p.From.Type = obj.TYPE_REG
 		p.From.Reg = r2
