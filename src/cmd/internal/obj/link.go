@@ -554,8 +554,9 @@ const (
 	// R_CALLMIPS (only used on mips64) resolves to non-PC-relative target address
 	// of a CALL (JAL) instruction, by encoding the address into the instruction.
 	R_CALLMIPS
-	// R_CALLRISCV is a no-op. It simply marks CALLs for stack checking.
-	R_CALLRISCV
+	// RISC-V has a 1-insn short call (1MiB) and a 2-insn long call (2 GiB)
+	R_CALLRISCV1
+	R_CALLRISCV2
 	R_CONST
 	R_PCREL
 	// R_TLS_LE, used on 386, amd64, and ARM, resolves to the offset of the
@@ -695,7 +696,7 @@ const (
 // in register or memory.
 func (r RelocType) IsDirectJump() bool {
 	switch r {
-	case R_CALL, R_CALLARM, R_CALLARM64, R_CALLPOWER, R_CALLMIPS, R_JMPMIPS:
+	case R_CALL, R_CALLARM, R_CALLARM64, R_CALLPOWER, R_CALLMIPS, R_JMPMIPS, R_CALLRISCV1:
 		return true
 	}
 	return false
