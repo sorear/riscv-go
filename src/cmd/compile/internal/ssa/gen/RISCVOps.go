@@ -94,10 +94,11 @@ func init() {
 	)
 
 	RISCVops := []opData{
-		{name: "ADD", argLength: 2, reg: gp21, asm: "ADD", commutative: true}, // arg0 + arg1
-		{name: "ADDI", argLength: 1, reg: gp11sb, asm: "ADDI", aux: "Int64"},  // arg0 + auxint
-		{name: "SUB", argLength: 2, reg: gp21, asm: "SUB"},                    // arg0 - arg1
-		{name: "NEG", argLength: 1, reg: gp11},                                // -arg0
+		{name: "ADD", argLength: 2, reg: gp21, asm: "ADD", commutative: true},  // arg0 + arg1
+		{name: "ADDI", argLength: 1, reg: gp11sb, asm: "ADDI", aux: "Int64"},   // arg0 + auxint
+		{name: "ADDIW", argLength: 1, reg: gp11sb, asm: "ADDIW", aux: "Int64"}, // arg0 + auxint
+		{name: "SUB", argLength: 2, reg: gp21, asm: "SUB"},                     // arg0 - arg1
+		{name: "NEG", argLength: 1, reg: gp11},                                 // -arg0
 
 		// M extension. H means high (i.e., it returns the top bits of
 		// the result). U means unsigned. W means word (i.e., 32-bit).

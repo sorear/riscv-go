@@ -432,16 +432,18 @@ func replaceWithLoadImm(ctxt *obj.Link, pool *[]poolReq, p *obj.Prog, into int16
 		p.From = obj.Addr{Type: obj.TYPE_CONST, Offset: high}
 		p.From3 = nil
 		p.To = obj.Addr{Type: obj.TYPE_REG, Reg: into}
-		p = obj.Appendp(ctxt, p)
+		if low != 0 {
+			p = obj.Appendp(ctxt, p)
 
-		p.As = AADDI
-		if high == -1<<19 {
-			// Be careful with constants like 0x7fffffff; the LUI got the wrong sign extension and it needs to be redone
-			p.As = AADDIW
+			p.As = AADDI
+			if high == -1<<19 {
+				// Be careful with constants like 0x7fffffff; the LUI got the wrong sign extension and it needs to be redone
+				p.As = AADDIW
+			}
+			p.From = obj.Addr{Type: obj.TYPE_CONST, Offset: low}
+			p.From3 = &obj.Addr{Type: obj.TYPE_REG, Reg: into}
+			p.To = obj.Addr{Type: obj.TYPE_REG, Reg: into}
 		}
-		p.From = obj.Addr{Type: obj.TYPE_CONST, Offset: low}
-		p.From3 = &obj.Addr{Type: obj.TYPE_REG, Reg: into}
-		p.To = obj.Addr{Type: obj.TYPE_REG, Reg: into}
 	} else {
 		p.As = AADDI
 		p.From = obj.Addr{Type: obj.TYPE_CONST, Offset: low}
@@ -850,7 +852,7 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 	for p := cursym.Text; p != nil; p = p.Link {
 		switch p.As {
 		// <opi> $imm, FROM3, TO
-		case AADDI, AANDI, AORI, AXORI:
+		case AADDI, AANDI, AORI, AXORI, AADDIW:
 			// LUI $high, TMP
 			// ADDI $low, TMP, TMP
 			// <op> TMP, FROM3, TO
@@ -863,6 +865,8 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 			switch q.As {
 			case AADDI:
 				p.As = AADD
+			case AADDIW:
+				p.As = AADDW
 			case AANDI:
 				p.As = AAND
 			case AORI:
@@ -1671,6 +1675,7 @@ var encodingForAs = [...]encoding{
 	ALUI & obj.AMask:   uEncoding,
 	AAUIPC & obj.AMask: uEncoding,
 	AADD & obj.AMask:   rIIIEncoding,
+	AADDW & obj.AMask:  rIIIEncoding,
 	ASLT & obj.AMask:   rIIIEncoding,
 	ASLTU & obj.AMask:  rIIIEncoding,
 	AAND & obj.AMask:   rIIIEncoding,
