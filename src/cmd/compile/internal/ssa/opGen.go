@@ -1379,6 +1379,7 @@ const (
 
 	OpRISCVADD
 	OpRISCVADDI
+	OpRISCVADDIW
 	OpRISCVSUB
 	OpRISCVNEG
 	OpRISCVMUL
@@ -17075,6 +17076,21 @@ var opcodeTable = [...]opInfo{
 		argLen:       1,
 		clobberFlags: true,
 		asm:          riscv.AADDI,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 9223372037928517622}, // SP GP T0 T1 T2 S0 S1 A0 A1 A2 A3 A4 A5 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
+			},
+			outputs: []outputInfo{
+				{0, 1073741812}, // GP T0 T1 T2 S0 S1 A0 A1 A2 A3 A4 A5 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5
+			},
+		},
+	},
+	{
+		name:         "ADDIW",
+		auxType:      auxInt64,
+		argLen:       1,
+		clobberFlags: true,
+		asm:          riscv.AADDIW,
 		reg: regInfo{
 			inputs: []inputInfo{
 				{0, 9223372037928517622}, // SP GP T0 T1 T2 S0 S1 A0 A1 A2 A3 A4 A5 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB

@@ -342,6 +342,8 @@ func rewriteValueRISCV(v *Value, config *Config) bool {
 		return rewriteValueRISCV_OpRISCVADD(v, config)
 	case OpRISCVADDI:
 		return rewriteValueRISCV_OpRISCVADDI(v, config)
+	case OpRISCVADDIW:
+		return rewriteValueRISCV_OpRISCVADDIW(v, config)
 	case OpRISCVAND:
 		return rewriteValueRISCV_OpRISCVAND(v, config)
 	case OpRISCVANDI:
@@ -3910,6 +3912,98 @@ func rewriteValueRISCV_OpRISCVADDI(v *Value, config *Config) bool {
 	}
 	return false
 }
+func rewriteValueRISCV_OpRISCVADDIW(v *Value, config *Config) bool {
+	b := v.Block
+	_ = b
+	// match: (ADDIW [0]            x:(MOVBload _ _))
+	// cond: isSigned(x.Type)
+	// result: x
+	for {
+		if v.AuxInt != 0 {
+			break
+		}
+		x := v.Args[0]
+		if x.Op != OpRISCVMOVBload {
+			break
+		}
+		if !(isSigned(x.Type)) {
+			break
+		}
+		v.reset(OpCopy)
+		v.Type = x.Type
+		v.AddArg(x)
+		return true
+	}
+	// match: (ADDIW [0]            x:(MOVHload _ _))
+	// cond: isSigned(x.Type)
+	// result: x
+	for {
+		if v.AuxInt != 0 {
+			break
+		}
+		x := v.Args[0]
+		if x.Op != OpRISCVMOVHload {
+			break
+		}
+		if !(isSigned(x.Type)) {
+			break
+		}
+		v.reset(OpCopy)
+		v.Type = x.Type
+		v.AddArg(x)
+		return true
+	}
+	// match: (ADDIW [0]            x:(MOVWload _ _))
+	// cond: isSigned(x.Type)
+	// result: x
+	for {
+		if v.AuxInt != 0 {
+			break
+		}
+		x := v.Args[0]
+		if x.Op != OpRISCVMOVWload {
+			break
+		}
+		if !(isSigned(x.Type)) {
+			break
+		}
+		v.reset(OpCopy)
+		v.Type = x.Type
+		v.AddArg(x)
+		return true
+	}
+	// match: (ADDIW [c] (MOVDconst [d]))
+	// cond:
+	// result: (MOVDconst [int64(int32(c+d))])
+	for {
+		c := v.AuxInt
+		v_0 := v.Args[0]
+		if v_0.Op != OpRISCVMOVDconst {
+			break
+		}
+		d := v_0.AuxInt
+		v.reset(OpRISCVMOVDconst)
+		v.AuxInt = int64(int32(c + d))
+		return true
+	}
+	// match: (ADDIW [c] (ADDI [d] x))
+	// cond:
+	// result: (ADDIW [c+d] x)
+	for {
+		c := v.AuxInt
+		v_0 := v.Args[0]
+		if v_0.Op != OpRISCVADDI {
+			break
+		}
+		d := v_0.AuxInt
+		x := v_0.Args[0]
+		v.reset(OpRISCVADDIW)
+		v.AuxInt = c + d
+		v.AddArg(x)
+		return true
+	}
+	return false
+}
 func rewriteValueRISCV_OpRISCVAND(v *Value, config *Config) bool {
 	b := v.Block
 	_ = b
@@ -3948,6 +4042,25 @@ func rewriteValueRISCV_OpRISCVAND(v *Value, config *Config) bool {
 func rewriteValueRISCV_OpRISCVANDI(v *Value, config *Config) bool {
 	b := v.Block
 	_ = b
+	// match: (ANDI [255]           x:(MOVBUload _ _))
+	// cond: !isSigned(x.Type)
+	// result: x
+	for {
+		if v.AuxInt != 255 {
+			break
+		}
+		x := v.Args[0]
+		if x.Op != OpRISCVMOVBUload {
+			break
+		}
+		if !(!isSigned(x.Type)) {
+			break
+		}
+		v.reset(OpCopy)
+		v.Type = x.Type
+		v.AddArg(x)
+		return true
+	}
 	// match: (ANDI [0]  _)
 	// cond:
 	// result: (MOVDconst [0])
@@ -5346,32 +5459,6 @@ func rewriteValueRISCV_OpRISCVSNEZ(v *Value, config *Config) bool {
 func rewriteValueRISCV_OpRISCVSRAI(v *Value, config *Config) bool {
 	b := v.Block
 	_ = b
-	// match: (SRAI [32] (SLLI [32] x:(MOVBload _ _)))
-	// cond: isSigned(x.Type)
-	// result: x
-	for {
-		if v.AuxInt != 32 {
-			break
-		}
-		v_0 := v.Args[0]
-		if v_0.Op != OpRISCVSLLI {
-			break
-		}
-		if v_0.AuxInt != 32 {
-			break
-		}
-		x := v_0.Args[0]
-		if x.Op != OpRISCVMOVBload {
-			break
-		}
-		if !(isSigned(x.Type)) {
-			break
-		}
-		v.reset(OpCopy)
-		v.Type = x.Type
-		v.AddArg(x)
-		return true
-	}
 	// match: (SRAI [48] (SLLI [48] x:(MOVBload _ _)))
 	// cond: isSigned(x.Type)
 	// result: x
@@ -5424,32 +5511,6 @@ func rewriteValueRISCV_OpRISCVSRAI(v *Value, config *Config) bool {
 		v.AddArg(x)
 		return true
 	}
-	// match: (SRAI [32] (SLLI [32] x:(MOVHload _ _)))
-	// cond: isSigned(x.Type)
-	// result: x
-	for {
-		if v.AuxInt != 32 {
-			break
-		}
-		v_0 := v.Args[0]
-		if v_0.Op != OpRISCVSLLI {
-			break
-		}
-		if v_0.AuxInt != 32 {
-			break
-		}
-		x := v_0.Args[0]
-		if x.Op != OpRISCVMOVHload {
-			break
-		}
-		if !(isSigned(x.Type)) {
-			break
-		}
-		v.reset(OpCopy)
-		v.Type = x.Type
-		v.AddArg(x)
-		return true
-	}
 	// match: (SRAI [48] (SLLI [48] x:(MOVHload _ _)))
 	// cond: isSigned(x.Type)
 	// result: x
@@ -5466,32 +5527,6 @@ func rewriteValueRISCV_OpRISCVSRAI(v *Value, config *Config) bool {
 		}
 		x := v_0.Args[0]
 		if x.Op != OpRISCVMOVHload {
-			break
-		}
-		if !(isSigned(x.Type)) {
-			break
-		}
-		v.reset(OpCopy)
-		v.Type = x.Type
-		v.AddArg(x)
-		return true
-	}
-	// match: (SRAI [32] (SLLI [32] x:(MOVWload _ _)))
-	// cond: isSigned(x.Type)
-	// result: x
-	for {
-		if v.AuxInt != 32 {
-			break
-		}
-		v_0 := v.Args[0]
-		if v_0.Op != OpRISCVSLLI {
-			break
-		}
-		if v_0.AuxInt != 32 {
-			break
-		}
-		x := v_0.Args[0]
-		if x.Op != OpRISCVMOVWload {
 			break
 		}
 		if !(isSigned(x.Type)) {
@@ -5559,32 +5594,6 @@ func rewriteValueRISCV_OpRISCVSRLI(v *Value, config *Config) bool {
 			break
 		}
 		if v_0.AuxInt != 48 {
-			break
-		}
-		x := v_0.Args[0]
-		if x.Op != OpRISCVMOVBUload {
-			break
-		}
-		if !(!isSigned(x.Type)) {
-			break
-		}
-		v.reset(OpCopy)
-		v.Type = x.Type
-		v.AddArg(x)
-		return true
-	}
-	// match: (SRLI [56] (SLLI [56] x:(MOVBUload _ _)))
-	// cond: !isSigned(x.Type)
-	// result: x
-	for {
-		if v.AuxInt != 56 {
-			break
-		}
-		v_0 := v.Args[0]
-		if v_0.Op != OpRISCVSLLI {
-			break
-		}
-		if v_0.AuxInt != 56 {
 			break
 		}
 		x := v_0.Args[0]
@@ -6887,15 +6896,12 @@ func rewriteValueRISCV_OpSignExt32to64(v *Value, config *Config) bool {
 	_ = b
 	// match: (SignExt32to64 x)
 	// cond:
-	// result: (SRAI [32] (SLLI <config.fe.TypeInt64()> [32] x))
+	// result: (ADDIW [0] x)
 	for {
 		x := v.Args[0]
-		v.reset(OpRISCVSRAI)
-		v.AuxInt = 32
-		v0 := b.NewValue0(v.Pos, OpRISCVSLLI, config.fe.TypeInt64())
-		v0.AuxInt = 32
-		v0.AddArg(x)
-		v.AddArg(v0)
+		v.reset(OpRISCVADDIW)
+		v.AuxInt = 0
+		v.AddArg(x)
 		return true
 	}
 }
@@ -7519,15 +7525,12 @@ func rewriteValueRISCV_OpZeroExt8to16(v *Value, config *Config) bool {
 	_ = b
 	// match: (ZeroExt8to16  x)
 	// cond:
-	// result: (SRLI [56] (SLLI <config.fe.TypeUInt64()> [56] x))
+	// result: (ANDI [255] x)
 	for {
 		x := v.Args[0]
-		v.reset(OpRISCVSRLI)
-		v.AuxInt = 56
-		v0 := b.NewValue0(v.Pos, OpRISCVSLLI, config.fe.TypeUInt64())
-		v0.AuxInt = 56
-		v0.AddArg(x)
-		v.AddArg(v0)
+		v.reset(OpRISCVANDI)
+		v.AuxInt = 255
+		v.AddArg(x)
 		return true
 	}
 }
@@ -7536,15 +7539,12 @@ func rewriteValueRISCV_OpZeroExt8to32(v *Value, config *Config) bool {
 	_ = b
 	// match: (ZeroExt8to32  x)
 	// cond:
-	// result: (SRLI [56] (SLLI <config.fe.TypeUInt64()> [56] x))
+	// result: (ANDI [255] x)
 	for {
 		x := v.Args[0]
-		v.reset(OpRISCVSRLI)
-		v.AuxInt = 56
-		v0 := b.NewValue0(v.Pos, OpRISCVSLLI, config.fe.TypeUInt64())
-		v0.AuxInt = 56
-		v0.AddArg(x)
-		v.AddArg(v0)
+		v.reset(OpRISCVANDI)
+		v.AuxInt = 255
+		v.AddArg(x)
 		return true
 	}
 }
@@ -7553,15 +7553,12 @@ func rewriteValueRISCV_OpZeroExt8to64(v *Value, config *Config) bool {
 	_ = b
 	// match: (ZeroExt8to64  x)
 	// cond:
-	// result: (SRLI [56] (SLLI <config.fe.TypeUInt64()> [56] x))
+	// result: (ANDI [255] x)
 	for {
 		x := v.Args[0]
-		v.reset(OpRISCVSRLI)
-		v.AuxInt = 56
-		v0 := b.NewValue0(v.Pos, OpRISCVSLLI, config.fe.TypeUInt64())
-		v0.AuxInt = 56
-		v0.AddArg(x)
-		v.AddArg(v0)
+		v.reset(OpRISCVANDI)
+		v.AuxInt = 255
+		v.AddArg(x)
 		return true
 	}
 }
