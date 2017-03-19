@@ -270,7 +270,7 @@ TEXT runtime·gogo(SB), NOSPLIT, $16-8
 	BEQ	T1, ZERO, nilctxt
 	ADD	$gobuf_ctxt, T0, T1
 	MOV	T1, 8(X2)
-	MOV	ZERO, 16(X2) // FIXME dubious.  this overwrites the _caller_'s saved LR
+	MOV	ZERO, 16(X2)
 	CALL	runtime·writebarrierptr_prewrite(SB)
 	MOV	buf+0(FP), T0
 
@@ -296,7 +296,7 @@ nilctxt:
 // 2. sub 12 bytes to get back to JAL deferreturn
 // 3. JMP to fn
 // TODO(sorear): there are shorter jump sequences, this function will need to be updated when we use them
-TEXT runtime·jmpdefer(SB), NOFRAME|NOSPLIT, $0-16 // FIXME NOFRAME might be an asm bug
+TEXT runtime·jmpdefer(SB), NOSPLIT, $-8-16
 	MOV	0(X2), RA
 	ADD	$-12, RA
 
@@ -315,7 +315,7 @@ TEXT runtime·procyield(SB),NOSPLIT,$0-0
 // to keep running g.
 
 // func mcall(fn func(*g))
-TEXT runtime·mcall(SB), NOSPLIT|NOFRAME, $0-8 // TODO(sorear): Assembler bug, -8 should imply NOFRAME
+TEXT runtime·mcall(SB), NOSPLIT, $-8-8
 	// Save caller state in g->sched
 	MOV	X2, (g_sched+gobuf_sp)(g)
 	MOV	RA, (g_sched+gobuf_pc)(g)

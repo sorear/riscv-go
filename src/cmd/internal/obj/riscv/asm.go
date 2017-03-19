@@ -437,6 +437,10 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 	if text.From3.Offset&obj.NOFRAME != 0 {
 		saveRA = false
 	}
+	if stacksize < 0 {
+		stacksize = 0
+		saveRA = false
+	}
 	if saveRA {
 		stacksize += 8
 	}
