@@ -282,6 +282,7 @@ func NewConfig(arch string, fe Frontend, ctxt *obj.Link, optimize bool) *Config 
 		c.fpRegMask = fpRegMaskRISCV
 		c.FPReg = framepointerRegRISCV
 		c.hasGReg = true
+		c.jumpsSetFlags = true
 	default:
 		fe.Fatalf(src.NoXPos, "arch %s not implemented", arch)
 	}

@@ -340,6 +340,8 @@ func rewriteValueRISCV(v *Value, config *Config) bool {
 		return rewriteValueRISCV_OpOrB(v, config)
 	case OpRISCVADDI:
 		return rewriteValueRISCV_OpRISCVADDI(v, config)
+	case OpRISCVCOMPARE:
+		return rewriteValueRISCV_OpRISCVCOMPARE(v, config)
 	case OpRISCVMOVBUload:
 		return rewriteValueRISCV_OpRISCVMOVBUload(v, config)
 	case OpRISCVMOVBload:
@@ -3589,6 +3591,43 @@ func rewriteValueRISCV_OpRISCVADDI(v *Value, config *Config) bool {
 	}
 	return false
 }
+func rewriteValueRISCV_OpRISCVCOMPARE(v *Value, config *Config) bool {
+	b := v.Block
+	_ = b
+	// match: (COMPARE x (MOVDconst [0]))
+	// cond:
+	// result: (COMPAREregzero x)
+	for {
+		x := v.Args[0]
+		v_1 := v.Args[1]
+		if v_1.Op != OpRISCVMOVDconst {
+			break
+		}
+		if v_1.AuxInt != 0 {
+			break
+		}
+		v.reset(OpRISCVCOMPAREregzero)
+		v.AddArg(x)
+		return true
+	}
+	// match: (COMPARE (MOVDconst [0]) x)
+	// cond:
+	// result: (COMPAREzeroreg x)
+	for {
+		v_0 := v.Args[0]
+		if v_0.Op != OpRISCVMOVDconst {
+			break
+		}
+		if v_0.AuxInt != 0 {
+			break
+		}
+		x := v.Args[1]
+		v.reset(OpRISCVCOMPAREzeroreg)
+		v.AddArg(x)
+		return true
+	}
+	return false
+}
 func rewriteValueRISCV_OpRISCVMOVBUload(v *Value, config *Config) bool {
 	b := v.Block
 	_ = b
@@ -6111,10 +6150,410 @@ func rewriteValueRISCV_OpZeroExt8to64(v *Value, config *Config) bool {
 }
 func rewriteBlockRISCV(b *Block, config *Config) bool {
 	switch b.Kind {
+	case BlockRISCVBEQ:
+		// match: (BEQ (COMPAREregzero (XORI [1] cond)) yes no)
+		// cond:
+		// result: (BNE (COMPAREregzero cond) yes no)
+		for {
+			v := b.Control
+			if v.Op != OpRISCVCOMPAREregzero {
+				break
+			}
+			v_0 := v.Args[0]
+			if v_0.Op != OpRISCVXORI {
+				break
+			}
+			if v_0.AuxInt != 1 {
+				break
+			}
+			cond := v_0.Args[0]
+			yes := b.Succs[0]
+			no := b.Succs[1]
+			b.Kind = BlockRISCVBNE
+			v0 := b.NewValue0(v.Pos, OpRISCVCOMPAREregzero, TypeFlags)
+			v0.AddArg(cond)
+			b.SetControl(v0)
+			_ = yes
+			_ = no
+			return true
+		}
+		// match: (BEQ (COMPAREregzero (SLT x y)) yes no)
+		// cond:
+		// result: (BGE (COMPARE x y) yes no)
+		for {
+			v := b.Control
+			if v.Op != OpRISCVCOMPAREregzero {
+				break
+			}
+			v_0 := v.Args[0]
+			if v_0.Op != OpRISCVSLT {
+				break
+			}
+			x := v_0.Args[0]
+			y := v_0.Args[1]
+			yes := b.Succs[0]
+			no := b.Succs[1]
+			b.Kind = BlockRISCVBGE
+			v0 := b.NewValue0(v.Pos, OpRISCVCOMPARE, TypeFlags)
+			v0.AddArg(x)
+			v0.AddArg(y)
+			b.SetControl(v0)
+			_ = yes
+			_ = no
+			return true
+		}
+		// match: (BEQ (COMPAREregzero (SLTU x y)) yes no)
+		// cond:
+		// result: (BGEU (COMPARE x y) yes no)
+		for {
+			v := b.Control
+			if v.Op != OpRISCVCOMPAREregzero {
+				break
+			}
+			v_0 := v.Args[0]
+			if v_0.Op != OpRISCVSLTU {
+				break
+			}
+			x := v_0.Args[0]
+			y := v_0.Args[1]
+			yes := b.Succs[0]
+			no := b.Succs[1]
+			b.Kind = BlockRISCVBGEU
+			v0 := b.NewValue0(v.Pos, OpRISCVCOMPARE, TypeFlags)
+			v0.AddArg(x)
+			v0.AddArg(y)
+			b.SetControl(v0)
+			_ = yes
+			_ = no
+			return true
+		}
+		// match: (BEQ (COMPAREregzero (SEQZ (SUB x y))) yes no)
+		// cond:
+		// result: (BNE (COMPARE x y) yes no)
+		for {
+			v := b.Control
+			if v.Op != OpRISCVCOMPAREregzero {
+				break
+			}
+			v_0 := v.Args[0]
+			if v_0.Op != OpRISCVSEQZ {
+				break
+			}
+			v_0_0 := v_0.Args[0]
+			if v_0_0.Op != OpRISCVSUB {
+				break
+			}
+			x := v_0_0.Args[0]
+			y := v_0_0.Args[1]
+			yes := b.Succs[0]
+			no := b.Succs[1]
+			b.Kind = BlockRISCVBNE
+			v0 := b.NewValue0(v.Pos, OpRISCVCOMPARE, TypeFlags)
+			v0.AddArg(x)
+			v0.AddArg(y)
+			b.SetControl(v0)
+			_ = yes
+			_ = no
+			return true
+		}
+		// match: (BEQ (COMPAREregzero (SNEZ (SUB x y))) yes no)
+		// cond:
+		// result: (BEQ (COMPARE x y) yes no)
+		for {
+			v := b.Control
+			if v.Op != OpRISCVCOMPAREregzero {
+				break
+			}
+			v_0 := v.Args[0]
+			if v_0.Op != OpRISCVSNEZ {
+				break
+			}
+			v_0_0 := v_0.Args[0]
+			if v_0_0.Op != OpRISCVSUB {
+				break
+			}
+			x := v_0_0.Args[0]
+			y := v_0_0.Args[1]
+			yes := b.Succs[0]
+			no := b.Succs[1]
+			b.Kind = BlockRISCVBEQ
+			v0 := b.NewValue0(v.Pos, OpRISCVCOMPARE, TypeFlags)
+			v0.AddArg(x)
+			v0.AddArg(y)
+			b.SetControl(v0)
+			_ = yes
+			_ = no
+			return true
+		}
+		// match: (BEQ (COMPAREregzero (SEQZ x)) yes no)
+		// cond:
+		// result: (BNE (COMPAREregzero x) yes no)
+		for {
+			v := b.Control
+			if v.Op != OpRISCVCOMPAREregzero {
+				break
+			}
+			v_0 := v.Args[0]
+			if v_0.Op != OpRISCVSEQZ {
+				break
+			}
+			x := v_0.Args[0]
+			yes := b.Succs[0]
+			no := b.Succs[1]
+			b.Kind = BlockRISCVBNE
+			v0 := b.NewValue0(v.Pos, OpRISCVCOMPAREregzero, TypeFlags)
+			v0.AddArg(x)
+			b.SetControl(v0)
+			_ = yes
+			_ = no
+			return true
+		}
+		// match: (BEQ (COMPAREregzero (SNEZ x)) yes no)
+		// cond:
+		// result: (BEQ (COMPAREregzero x) yes no)
+		for {
+			v := b.Control
+			if v.Op != OpRISCVCOMPAREregzero {
+				break
+			}
+			v_0 := v.Args[0]
+			if v_0.Op != OpRISCVSNEZ {
+				break
+			}
+			x := v_0.Args[0]
+			yes := b.Succs[0]
+			no := b.Succs[1]
+			b.Kind = BlockRISCVBEQ
+			v0 := b.NewValue0(v.Pos, OpRISCVCOMPAREregzero, TypeFlags)
+			v0.AddArg(x)
+			b.SetControl(v0)
+			_ = yes
+			_ = no
+			return true
+		}
+		// match: (BEQ (COMPAREzeroreg x) yes no)
+		// cond:
+		// result: (BEQ (COMPAREregzero x) yes no)
+		for {
+			v := b.Control
+			if v.Op != OpRISCVCOMPAREzeroreg {
+				break
+			}
+			x := v.Args[0]
+			yes := b.Succs[0]
+			no := b.Succs[1]
+			b.Kind = BlockRISCVBEQ
+			v0 := b.NewValue0(v.Pos, OpRISCVCOMPAREregzero, TypeFlags)
+			v0.AddArg(x)
+			b.SetControl(v0)
+			_ = yes
+			_ = no
+			return true
+		}
+	case BlockRISCVBNE:
+		// match: (BNE (COMPAREregzero (XORI [1] cond)) yes no)
+		// cond:
+		// result: (BEQ (COMPAREregzero cond) yes no)
+		for {
+			v := b.Control
+			if v.Op != OpRISCVCOMPAREregzero {
+				break
+			}
+			v_0 := v.Args[0]
+			if v_0.Op != OpRISCVXORI {
+				break
+			}
+			if v_0.AuxInt != 1 {
+				break
+			}
+			cond := v_0.Args[0]
+			yes := b.Succs[0]
+			no := b.Succs[1]
+			b.Kind = BlockRISCVBEQ
+			v0 := b.NewValue0(v.Pos, OpRISCVCOMPAREregzero, TypeFlags)
+			v0.AddArg(cond)
+			b.SetControl(v0)
+			_ = yes
+			_ = no
+			return true
+		}
+		// match: (BNE (COMPAREregzero (SLT x y)) yes no)
+		// cond:
+		// result: (BLT (COMPARE x y) yes no)
+		for {
+			v := b.Control
+			if v.Op != OpRISCVCOMPAREregzero {
+				break
+			}
+			v_0 := v.Args[0]
+			if v_0.Op != OpRISCVSLT {
+				break
+			}
+			x := v_0.Args[0]
+			y := v_0.Args[1]
+			yes := b.Succs[0]
+			no := b.Succs[1]
+			b.Kind = BlockRISCVBLT
+			v0 := b.NewValue0(v.Pos, OpRISCVCOMPARE, TypeFlags)
+			v0.AddArg(x)
+			v0.AddArg(y)
+			b.SetControl(v0)
+			_ = yes
+			_ = no
+			return true
+		}
+		// match: (BNE (COMPAREregzero (SLTU x y)) yes no)
+		// cond:
+		// result: (BLTU (COMPARE x y) yes no)
+		for {
+			v := b.Control
+			if v.Op != OpRISCVCOMPAREregzero {
+				break
+			}
+			v_0 := v.Args[0]
+			if v_0.Op != OpRISCVSLTU {
+				break
+			}
+			x := v_0.Args[0]
+			y := v_0.Args[1]
+			yes := b.Succs[0]
+			no := b.Succs[1]
+			b.Kind = BlockRISCVBLTU
+			v0 := b.NewValue0(v.Pos, OpRISCVCOMPARE, TypeFlags)
+			v0.AddArg(x)
+			v0.AddArg(y)
+			b.SetControl(v0)
+			_ = yes
+			_ = no
+			return true
+		}
+		// match: (BNE (COMPAREregzero (SEQZ (SUB x y))) yes no)
+		// cond:
+		// result: (BEQ (COMPARE x y) yes no)
+		for {
+			v := b.Control
+			if v.Op != OpRISCVCOMPAREregzero {
+				break
+			}
+			v_0 := v.Args[0]
+			if v_0.Op != OpRISCVSEQZ {
+				break
+			}
+			v_0_0 := v_0.Args[0]
+			if v_0_0.Op != OpRISCVSUB {
+				break
+			}
+			x := v_0_0.Args[0]
+			y := v_0_0.Args[1]
+			yes := b.Succs[0]
+			no := b.Succs[1]
+			b.Kind = BlockRISCVBEQ
+			v0 := b.NewValue0(v.Pos, OpRISCVCOMPARE, TypeFlags)
+			v0.AddArg(x)
+			v0.AddArg(y)
+			b.SetControl(v0)
+			_ = yes
+			_ = no
+			return true
+		}
+		// match: (BNE (COMPAREregzero (SNEZ (SUB x y))) yes no)
+		// cond:
+		// result: (BNE (COMPARE x y) yes no)
+		for {
+			v := b.Control
+			if v.Op != OpRISCVCOMPAREregzero {
+				break
+			}
+			v_0 := v.Args[0]
+			if v_0.Op != OpRISCVSNEZ {
+				break
+			}
+			v_0_0 := v_0.Args[0]
+			if v_0_0.Op != OpRISCVSUB {
+				break
+			}
+			x := v_0_0.Args[0]
+			y := v_0_0.Args[1]
+			yes := b.Succs[0]
+			no := b.Succs[1]
+			b.Kind = BlockRISCVBNE
+			v0 := b.NewValue0(v.Pos, OpRISCVCOMPARE, TypeFlags)
+			v0.AddArg(x)
+			v0.AddArg(y)
+			b.SetControl(v0)
+			_ = yes
+			_ = no
+			return true
+		}
+		// match: (BNE (COMPAREregzero (SEQZ x)) yes no)
+		// cond:
+		// result: (BEQ (COMPAREregzero x) yes no)
+		for {
+			v := b.Control
+			if v.Op != OpRISCVCOMPAREregzero {
+				break
+			}
+			v_0 := v.Args[0]
+			if v_0.Op != OpRISCVSEQZ {
+				break
+			}
+			x := v_0.Args[0]
+			yes := b.Succs[0]
+			no := b.Succs[1]
+			b.Kind = BlockRISCVBEQ
+			v0 := b.NewValue0(v.Pos, OpRISCVCOMPAREregzero, TypeFlags)
+			v0.AddArg(x)
+			b.SetControl(v0)
+			_ = yes
+			_ = no
+			return true
+		}
+		// match: (BNE (COMPAREregzero (SNEZ x)) yes no)
+		// cond:
+		// result: (BNE (COMPAREregzero x) yes no)
+		for {
+			v := b.Control
+			if v.Op != OpRISCVCOMPAREregzero {
+				break
+			}
+			v_0 := v.Args[0]
+			if v_0.Op != OpRISCVSNEZ {
+				break
+			}
+			x := v_0.Args[0]
+			yes := b.Succs[0]
+			no := b.Succs[1]
+			b.Kind = BlockRISCVBNE
+			v0 := b.NewValue0(v.Pos, OpRISCVCOMPAREregzero, TypeFlags)
+			v0.AddArg(x)
+			b.SetControl(v0)
+			_ = yes
+			_ = no
+			return true
+		}
+		// match: (BNE (COMPAREzeroreg x) yes no)
+		// cond:
+		// result: (BNE (COMPAREregzero x) yes no)
+		for {
+			v := b.Control
+			if v.Op != OpRISCVCOMPAREzeroreg {
+				break
+			}
+			x := v.Args[0]
+			yes := b.Succs[0]
+			no := b.Succs[1]
+			b.Kind = BlockRISCVBNE
+			v0 := b.NewValue0(v.Pos, OpRISCVCOMPAREregzero, TypeFlags)
+			v0.AddArg(x)
+			b.SetControl(v0)
+			_ = yes
+			_ = no
+			return true
+		}
 	case BlockIf:
 		// match: (If cond yes no)
 		// cond:
-		// result: (BNE cond yes no)
+		// result: (BNE (COMPAREregzero cond) yes no)
 		for {
 			v := b.Control
 			_ = v
@@ -6122,7 +6561,9 @@ func rewriteBlockRISCV(b *Block, config *Config) bool {
 			yes := b.Succs[0]
 			no := b.Succs[1]
 			b.Kind = BlockRISCVBNE
-			b.SetControl(cond)
+			v0 := b.NewValue0(v.Pos, OpRISCVCOMPAREregzero, TypeFlags)
+			v0.AddArg(cond)
+			b.SetControl(v0)
 			_ = yes
 			_ = no
 			return true
