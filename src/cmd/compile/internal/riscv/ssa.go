@@ -460,6 +460,8 @@ func ssaGenValue(s *gc.SSAGenState, v *ssa.Value) {
 	case ssa.OpRISCVLoweredGetClosurePtr:
 		// Closure pointer is S4 (riscv.REG_CTXT).
 		gc.CheckLoweredGetClosurePtr(v)
+	case ssa.OpRISCVCOMPARE, ssa.OpRISCVCOMPAREzeroreg, ssa.OpRISCVCOMPAREregzero:
+		// These generate no code because they are handled magically in ssaGenBlocks
 	default:
 		v.Fatalf("Unhandled op %v", v.Op)
 	}
@@ -499,13 +501,49 @@ func ssaGenBlock(s *gc.SSAGenState, b, next *ssa.Block) {
 		p.To.Type = obj.TYPE_MEM
 		p.To.Name = obj.NAME_EXTERN
 		p.To.Sym = gc.Linksym(b.Aux.(*gc.Sym))
-	case ssa.BlockRISCVBNE:
-		// Conditional branch if Control != 0.
+	case ssa.BlockRISCVBEQ, ssa.BlockRISCVBNE, ssa.BlockRISCVBLT, ssa.BlockRISCVBGE, ssa.BlockRISCVBLTU, ssa.BlockRISCVBGEU:
+		// We only get one Control value, so to link the two arguments of the RISC-V
+		// native branch we use a fictitious flag-generating instruction.  Make sure
+		// it's still attached to us.
+		if len(b.Values) == 0 || b.Values[len(b.Values)-1] != b.Control {
+			b.Fatalf("pseudo-compare must be at the end of the block (%v) which uses it", b.ID)
+		}
+
 		p := gc.Prog(riscv.ABNE)
 		p.To.Type = obj.TYPE_BRANCH
-		p.Reg = b.Control.Reg()
 		p.From.Type = obj.TYPE_REG
-		p.From.Reg = riscv.REG_ZERO
+
+		switch b.Kind {
+		case ssa.BlockRISCVBEQ:
+			p.As = riscv.ABEQ
+		case ssa.BlockRISCVBNE:
+			p.As = riscv.ABNE
+		case ssa.BlockRISCVBLT:
+			p.As = riscv.ABLT
+		case ssa.BlockRISCVBGE:
+			p.As = riscv.ABGE
+		case ssa.BlockRISCVBLTU:
+			p.As = riscv.ABLTU
+		case ssa.BlockRISCVBGEU:
+			p.As = riscv.ABGEU
+		default:
+			b.Fatalf("Unhandled branch kind %v", b.Kind)
+		}
+
+		switch b.Control.Op {
+		case ssa.OpRISCVCOMPARE:
+			p.From.Reg = b.Control.Args[0].Reg()
+			p.Reg = b.Control.Args[1].Reg()
+		case ssa.OpRISCVCOMPAREregzero:
+			p.From.Reg = b.Control.Args[0].Reg()
+			p.Reg = riscv.REG_ZERO
+		case ssa.OpRISCVCOMPAREzeroreg:
+			p.From.Reg = riscv.REG_ZERO
+			p.Reg = b.Control.Args[0].Reg()
+		default:
+			b.Fatalf("Unhandled pseudo-comparison op %v", b.Control.Op)
+		}
+
 		switch next {
 		case b.Succs[0].Block():
 			p.As = riscv.InvertBranch(p.As)
