@@ -39,7 +39,11 @@ package riscv
 import (
 	"cmd/internal/obj"
 	"fmt"
+	"os"
 )
+
+// TODO(sorear): replace this with a proper GORISCV=G, GORISCV=GC facility
+var GORISCVRVC bool = os.Getenv("GORISCVRVC") != "no"
 
 // stackOffset updates Addr offsets based on the current stack size.
 //
@@ -403,6 +407,7 @@ func replaceWithLoadImm(ctxt *obj.Link, pool *[]poolReq, p *obj.Prog, into int16
 	p.Spadj = 0 // needed when splitting large SP increases/decreases
 	if err != nil {
 		p.As = AAUIPC
+		p.Mark |= NOCOMPRESS // because it will be filled in post-branch-offsets
 		p.From = obj.Addr{Type: obj.TYPE_BRANCH}
 		// This causes the offset to be filled in later
 		*pool = append(*pool, poolReq{value: value, p: p})
@@ -411,6 +416,7 @@ func replaceWithLoadImm(ctxt *obj.Link, pool *[]poolReq, p *obj.Prog, into int16
 		p = obj.Appendp(ctxt, p)
 
 		p.As = ALD
+		p.Mark |= NOCOMPRESS // because it will be filled in post-branch-offsets
 		p.From = obj.Addr{Type: obj.TYPE_CONST}
 		p.From3 = &obj.Addr{Type: obj.TYPE_REG, Reg: into}
 		p.To = obj.Addr{Type: obj.TYPE_REG, Reg: into}
@@ -636,12 +642,13 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 					p.From = obj.Addr{Type: obj.TYPE_CONST, Offset: p.From.Offset, Sym: p.From.Sym}
 					p.From3 = &obj.Addr{}
 					p.To = obj.Addr{Type: obj.TYPE_REG, Reg: to.Reg}
-					p.Mark |= NEED_PCREL_ITYPE_RELOC
+					p.Mark |= NEED_PCREL_ITYPE_RELOC | NOCOMPRESS
 					p = obj.Appendp(ctxt, p)
 
 					p.As = movtol(as)
 					p.From = obj.Addr{Type: obj.TYPE_CONST}
 					p.From3 = &obj.Addr{Type: obj.TYPE_REG, Reg: to.Reg}
+					p.Mark |= NOCOMPRESS
 					p.To = to
 				default:
 					ctxt.Diag("progedit: unsupported name %d for %v", p.From.Name, p)
@@ -692,12 +699,13 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 						p.From = obj.Addr{Type: obj.TYPE_CONST, Offset: p.To.Offset, Sym: p.To.Sym}
 						p.From3 = &obj.Addr{}
 						p.To = obj.Addr{Type: obj.TYPE_REG, Reg: REG_TMP}
-						p.Mark |= NEED_PCREL_STYPE_RELOC
+						p.Mark |= NEED_PCREL_STYPE_RELOC | NOCOMPRESS
 						p = obj.Appendp(ctxt, p)
 
 						p.As = movtos(as)
 						p.From = obj.Addr{Type: obj.TYPE_CONST}
 						p.From3 = &from
+						p.Mark |= NOCOMPRESS
 						p.To = obj.Addr{Type: obj.TYPE_REG, Reg: REG_TMP}
 					default:
 						ctxt.Diag("progedit: unsupported name %d for %v", p.From.Name, p)
@@ -733,10 +741,11 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 					p.From = obj.Addr{Type: obj.TYPE_CONST, Offset: p.From.Offset, Sym: p.From.Sym}
 					p.From3 = &obj.Addr{}
 					p.To = to
-					p.Mark |= NEED_PCREL_ITYPE_RELOC
+					p.Mark |= NEED_PCREL_ITYPE_RELOC | NOCOMPRESS
 					p = obj.Appendp(ctxt, p)
 
 					p.As = AADDI
+					p.Mark |= NOCOMPRESS
 					p.From = obj.Addr{Type: obj.TYPE_CONST}
 					p.From3 = &obj.Addr{Type: obj.TYPE_REG, Reg: to.Reg}
 					p.To = to
@@ -944,6 +953,10 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 					// We may have made previous branches too long,
 					// so recheck them.
 					rescan = true
+				} else if (offset < -256 || 256 <= offset) && (p.As == ABEQ || p.As == ABNE) && p.Reg == REG_ZERO && p.Mark&NOCOMPRESS == 0 {
+					// Branch cannot be encoded in two bytes
+					p.Mark |= NOCOMPRESS
+					rescan = true
 				}
 			case AJAL:
 				if p.Pcond != nil {
@@ -963,6 +976,10 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 						p.From3 = &obj.Addr{}
 						p.To = obj.Addr{Type: obj.TYPE_REG, Reg: REG_TMP}
 
+						rescan = true
+					} else if (offset < -2048 || 2048 <= offset) && p.From.Reg == REG_ZERO && p.Mark&NOCOMPRESS == 0 {
+						// Jump cannot be encoded in two bytes
+						p.Mark |= NOCOMPRESS
 						rescan = true
 					}
 				} else {
@@ -984,12 +1001,13 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 						jmp.From = obj.Addr{Type: obj.TYPE_CONST, Offset: 0}
 						jmp.To = p.From
 						jmp.From3 = &obj.Addr{Type: obj.TYPE_REG, Reg: REG_TMP}
+						jmp.Mark |= NOCOMPRESS
 
 						p.As = AAUIPC
 						p.From = obj.Addr{Type: obj.TYPE_CONST, Offset: p.To.Offset, Sym: p.To.Sym}
 						p.From3 = &obj.Addr{}
 						p.To = obj.Addr{Type: obj.TYPE_REG, Reg: REG_TMP}
-						p.Mark |= NEED_CALL_RELOC2
+						p.Mark |= NEED_CALL_RELOC2 | NOCOMPRESS
 
 						rescan = true
 					}
@@ -1700,6 +1718,7 @@ var encodingForAs = [...]encoding{
 	ASLL & obj.AMask:   rIIIEncoding,
 	ASRL & obj.AMask:   rIIIEncoding,
 	ASUB & obj.AMask:   rIIIEncoding,
+	ASUBW & obj.AMask:  rIIIEncoding,
 	ASRA & obj.AMask:   rIIIEncoding,
 
 	// 4.3: Load and Store Instructions
@@ -1818,6 +1837,230 @@ func encodingForP(p *obj.Prog) encoding {
 	return enc
 }
 
+func compressLoadStore(p *obj.Prog, store bool, float bool, typecode int, size int) uint16 {
+	imm := int(p.From.Offset)
+
+	if imm < 0 || imm&(size-1) != 0 {
+		// misaligned or backward offset are never compressible
+		return 0
+	}
+
+	var base, datum int
+	var datumv obj.Addr
+	if store {
+		base = int(regi(p.To))
+		datumv = *p.From3
+	} else {
+		base = int(regi(*p.From3))
+		datumv = p.To
+	}
+	if float {
+		datum = int(regf(datumv))
+	} else {
+		datum = int(regi(datumv))
+	}
+
+	if base == REG_SP-REG_X0 {
+		if imm >= size*64 || datum == 0 && !store && !float {
+			return 0
+		}
+		// fold immediate 5:0
+		immf := imm&63 | imm>>6
+		if store {
+			return uint16(1<<15 | typecode<<13 | immf<<7 | datum<<2 | 2)
+		} else {
+			return uint16(typecode<<13 | (immf&32)<<7 | datum<<7 | (immf&31)<<2 | 2)
+		}
+	} else if base >= 8 && base <= 15 && datum >= 8 && datum <= 15 {
+		if imm >= size*32 {
+			return 0
+		}
+		// fold immediate into 5:1, shr 1
+		immf := (imm&63 | imm>>5) >> 1
+		if store {
+			return uint16(1<<15 | typecode<<13 | (immf>>2)<<10 | (base&7)<<7 | (immf&3)<<5 | (datum&7)<<2 | 0)
+		} else {
+			return uint16(0<<15 | typecode<<13 | (immf>>2)<<10 | (base&7)<<7 | (immf&3)<<5 | (datum&7)<<2 | 0)
+		}
+	} else {
+		return 0
+	}
+}
+
+// some instructions have 16-bit compressed encodings; they're irregular, few in number, and not in machine readable form so just list them
+// returns 0 if there is no compressed encoding, which a valid but permanently undefined encoding
+func compress(p *obj.Prog) uint16 {
+	if p.Mark&NOCOMPRESS != 0 || !GORISCVRVC {
+		return 0
+	}
+	off := p.From.Offset
+	switch p.As {
+	// 14.3 Load and Store Instructions
+	case AFLD:
+		return compressLoadStore(p, false, true, 1, 8)
+	case ALW:
+		return compressLoadStore(p, false, false, 2, 4)
+	case ALD:
+		return compressLoadStore(p, false, false, 3, 8)
+	case AFSD:
+		return compressLoadStore(p, true, true, 1, 8)
+	case ASW:
+		return compressLoadStore(p, true, false, 2, 4)
+	case ASD:
+		return compressLoadStore(p, true, false, 3, 8)
+	// 14.4 Control Transfer Instructions
+	case AJAL:
+		// not if it will be relocated
+		if p.To.Sym != nil {
+			return 0
+		}
+		lr := regi(p.From)
+		// Branches _fail_ if overextended because that needs to be handled in the branch extension pass (to avoid lengths changing when offsets are set)
+		if lr == 0 /* J */ {
+			// offset[11|4|9:8|10|6|7|3:1|5] << 2
+			o := uint16(immi(p.To, 12))
+			return uint16(0xA001 | ((o>>11)&1)<<12 | ((o>>4)&1)<<11 | ((o>>8)&3)<<9 | ((o>>10)&1)<<8 | ((o>>6)&1)<<7 | ((o>>7)&1)<<6 | ((o>>1)&7)<<3 | ((o>>5)&1)<<2)
+		}
+	case AJALR:
+		lr := regi(p.To)
+		from := regi(*p.From3)
+		if p.From.Offset == 0 && from != 0 /* REG_ZERO */ && (lr == 0 /* JR */ || lr == 1 /* JALR */) {
+			return uint16(0x8002 | lr<<12 | from<<7)
+		}
+	case ABEQ, ABNE:
+		rs2 := regval(p.Reg, REG_X0, REG_X31)
+		rs1 := regi(p.From)
+		// Branches _fail_ if overextended because that needs to be handled in the branch extension pass (to avoid lengths changing when offsets are set)
+		if rs1 >= 8 && rs1 <= 15 && rs2 == 0 {
+			// offset[8|4:3] rs1' offset[7:6|2:1|5]
+			opc := uint16(0xC001)
+			o := uint16(immi(p.To, 9))
+			if p.As == ABNE {
+				opc = 0xE001
+			}
+			return uint16(opc | ((o>>8)&1)<<12 | ((o>>3)&3)<<10 | uint16(rs1&7)<<7 | ((o>>6)&3)<<5 | ((o>>1)&3)<<3 | ((o>>5)&1)<<2)
+		}
+	// 14.5 Integer Computational Instructions
+	// Integer Constant-Generation Instructions
+	case AADDI:
+		rs1 := regi(*p.From3)
+		rd := regi(p.To)
+		if rd == uint32(REG_SP-REG_X0) && rs1 == rd && off&15 == 0 && immFits(off, 10) {
+			// C.ADDI16SP // 011 nzimm[9] 2 nzimm[4|6|8:7|5] 01
+			o := uint16(p.From.Offset)
+			return uint16(0x6101 | ((o>>9)&1)<<12 | ((o>>4)&1)<<6 | ((o>>6)&1)<<5 | ((o>>7)&3)<<3 | ((o>>5)&1)<<2)
+		}
+		if rd >= 8 && rd <= 15 && rs1 == uint32(REG_SP-REG_X0) && off > 0 && off < 1024 && off&3 == 0 {
+			// C.ADDI4SPN // 000 nzimm[5:4|9:6|2|3] rd' 00a
+			o := uint16(p.From.Offset)
+			return uint16(0x0000 | ((o>>4)&3)<<11 | ((o>>6)&15)<<7 | ((o>>2)&1)<<6 | ((o>>3)&1)<<5 | uint16(rd&7)<<2)
+		}
+		if rs1 == rd && rs1 != 0 && off != 0 && immFits(off, 6) {
+			// C.ADDI // 000 nzimm[5] rs1/rd!=0 nzimm[4:0] 01
+			o := uint16(p.From.Offset)
+			return uint16(0x0001 | ((o>>5)&1)<<12 | uint16(rd)<<7 | (o&31)<<2)
+		}
+		if rs1 == 0 && rd != 0 && immFits(off, 6) {
+			// C.LI // 010 imm[5] rs1/rd!=0 imm[4:0] 01
+			o := uint16(p.From.Offset)
+			return uint16(0x4001 | ((o>>5)&1)<<12 | uint16(rd)<<7 | (o&31)<<2)
+		}
+		if off == 0 && rs1 != 0 && rd != 0 {
+			// C.MV // 100 0 rd!=0 rs2!=0 10
+			return uint16(0x8002 | rd<<7 | rs1<<2)
+		}
+	case ALUI:
+		rd := regi(p.To)
+		if rd != 0 && rd != 2 && immFits(off, 6) {
+			o := uint16(p.From.Offset)
+			return uint16(0x6001 | ((o>>5)&1)<<12 | uint16(rd)<<7 | (o&31)<<2)
+		}
+	// Integer Register-Immediate Operations
+	// cases of ADDI already handled
+	case AADDIW:
+		rs1 := regi(*p.From3)
+		rd := regi(p.To)
+		if rs1 == rd && rs1 != 0 && immFits(off, 6) {
+			// C.ADDIW // 001 imm[5] rs1/rd!=0 imm[4:0] 01
+			o := uint16(p.From.Offset)
+			return uint16(0x2001 | ((o>>5)&1)<<12 | uint16(rd)<<7 | (o&31)<<2)
+		}
+	case AANDI:
+		// C.ANDI // 100 imm[5] 10 rs1'/rd' imm[4:0] 01
+		rs1 := regi(*p.From3)
+		rd := regi(p.To)
+		if rs1 == rd && rd >= 8 && rd <= 15 && immFits(off, 6) {
+			o := uint16(p.From.Offset)
+			return uint16(0x8801 | ((o>>5)&1)<<12 | uint16(rd&7)<<7 | (o&31)<<2)
+		}
+	case ASRLI:
+		// C.SRLI // 100 nzimm[5] 00 rs1'/rd' nzimm[4:0] 01
+		rs1 := regi(*p.From3)
+		rd := regi(p.To)
+		if rs1 == rd && rd >= 8 && rd <= 15 && off > 0 && off < 64 {
+			o := uint16(p.From.Offset)
+			return uint16(0x8001 | ((o>>5)&1)<<12 | uint16(rd&7)<<7 | (o&31)<<2)
+		}
+	case ASRAI:
+		// C.SRAI // 100 nzimm[5] 01 rs1'/rd' nzimm[4:0] 01
+		rs1 := regi(*p.From3)
+		rd := regi(p.To)
+		if rs1 == rd && rd >= 8 && rd <= 15 && off > 0 && off < 64 {
+			o := uint16(p.From.Offset)
+			return uint16(0x8401 | ((o>>5)&1)<<12 | uint16(rd&7)<<7 | (o&31)<<2)
+		}
+	case ASLLI:
+		// C.SLLI // 000 nzimm[5] rd!=0 nzimm[4:0] 10
+		rs1 := regi(*p.From3)
+		rd := regi(p.To)
+		if rs1 == rd && rs1 != 0 && off > 0 && off < 64 {
+			o := uint16(p.From.Offset)
+			return uint16(0x0002 | ((o>>5)&1)<<12 | uint16(rd)<<7 | (o&31)<<2)
+		}
+	// Integer Register-Register Operations
+	// MV already handled (we generate it as ADDI)
+	case AADD:
+		// C.ADD // 100 1 rd!=0 rs2!=0 10
+		rs1 := regi(*p.From3)
+		rs2 := regi(p.From)
+		rd := regi(p.To)
+		if rd == rs1 && rd != 0 && rs2 != 0 {
+			return uint16(0x9002 | rd<<7 | rs2<<2)
+		}
+	case AAND, AOR, AXOR, ASUB, AADDW, ASUBW:
+		// C.AND  // 100 0 11 rs1'/rd' 11 rs2' 01
+		// C.OR   // 100 0 11 rs1'/rd' 10 rs2' 01
+		// C.XOR  // 100 0 11 rs1'/rd' 01 rs2' 01
+		// C.SUB  // 100 0 11 rs1'/rd' 00 rs2' 01
+		// C.ADDW // 100 1 11 rs1'/rd' 01 rs2' 01
+		// C.SUBW // 100 1 11 rs1'/rd' 00 rs2' 01
+		rs1 := regi(*p.From3)
+		rs2 := regi(p.From)
+		rd := regi(p.To)
+		if rd == rs1 && rd >= 8 && rd <= 15 && rs2 >= 8 && rs2 <= 15 {
+			var opc uint32
+			switch p.As {
+			case AAND:
+				opc = 0x8C61
+			case AOR:
+				opc = 0x8C41
+			case AXOR:
+				opc = 0x8C21
+			case ASUB:
+				opc = 0x8C01
+			case AADDW:
+				opc = 0x9C21
+			case ASUBW:
+				opc = 0x9C01
+			}
+			return uint16(opc | (rd&7)<<7 | (rs2&7)<<2)
+		}
+	case AEBREAK:
+		return 0x9002
+	}
+	return 0
+}
+
 // assemble emits machine code.
 // It is called at the very end of the assembly process.
 func assemble(ctxt *obj.Link, cursym *obj.LSym) {
@@ -1863,9 +2106,13 @@ func assemble(ctxt *obj.Link, cursym *obj.LSym) {
 			rel.Type = t
 		}
 
-		enc := encodingForP(p)
-		if enc.length > 0 {
-			symcode = append(symcode, enc.encode(p))
+		if code := compress(p); code != 0 {
+			symcode = append(symcode, uint32(code)|1<<16) // append C.NOP for testing
+		} else {
+			enc := encodingForP(p)
+			if enc.length > 0 {
+				symcode = append(symcode, enc.encode(p))
+			}
 		}
 	}
 	cursym.Size = int64(4 * len(symcode))

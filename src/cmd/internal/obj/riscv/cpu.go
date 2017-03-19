@@ -202,6 +202,11 @@ const (
 	// it is the first instruction in an AUIPC + S-type pair that needs a
 	// R_RISCV_PCREL_STYPE relocation.
 	NEED_PCREL_STYPE_RELOC
+
+	// Disables compression.  Set on instructions which need a fixed size
+	// after preprocess, because of relocations or use in branch offset
+	// calculation.
+	NOCOMPRESS
 )
 
 // RISC-V mnemonics, as defined in the "opcodes" and "opcodes-pseudo" files of
