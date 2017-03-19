@@ -457,12 +457,35 @@
 // Conditional branches
 //
 // cond is 1 if true. BNE compares against 0.
-//
-// TODO(prattmic): RISCV branch instructions take two operands to compare,
-// so we could generate more efficient code by computing the condition in the
-// branch itself. Unfortunately, the compiler doesn't current support Blocks
-// with two control values. Revisit adding support for two control values.
-(If cond yes no) -> (BNE cond yes no)
+
+(If cond yes no) -> (BNE (COMPAREregzero cond) yes no)
+
+// Absorb NOT into boolean branches
+(BNE (COMPAREregzero (XORI [1] cond)) yes no) -> (BEQ (COMPAREregzero cond) yes no)
+(BEQ (COMPAREregzero (XORI [1] cond)) yes no) -> (BNE (COMPAREregzero cond) yes no)
+
+// Absorb comparisons into boolean branches
+(BNE (COMPAREregzero (SLT x y)) yes no) -> (BLT (COMPARE x y) yes no)
+(BNE (COMPAREregzero (SLTU x y)) yes no) -> (BLTU (COMPARE x y) yes no)
+(BNE (COMPAREregzero (SEQZ (SUB x y))) yes no) -> (BEQ (COMPARE x y) yes no)
+(BNE (COMPAREregzero (SNEZ (SUB x y))) yes no) -> (BNE (COMPARE x y) yes no)
+(BNE (COMPAREregzero (SEQZ x)) yes no) -> (BEQ (COMPAREregzero x) yes no)
+(BNE (COMPAREregzero (SNEZ x)) yes no) -> (BNE (COMPAREregzero x) yes no)
+
+(BEQ (COMPAREregzero (SLT x y)) yes no) -> (BGE (COMPARE x y) yes no)
+(BEQ (COMPAREregzero (SLTU x y)) yes no) -> (BGEU (COMPARE x y) yes no)
+(BEQ (COMPAREregzero (SEQZ (SUB x y))) yes no) -> (BNE (COMPARE x y) yes no)
+(BEQ (COMPAREregzero (SNEZ (SUB x y))) yes no) -> (BEQ (COMPARE x y) yes no)
+(BEQ (COMPAREregzero (SEQZ x)) yes no) -> (BNE (COMPAREregzero x) yes no)
+(BEQ (COMPAREregzero (SNEZ x)) yes no) -> (BEQ (COMPAREregzero x) yes no)
+
+// Absorb constant zero into comparisons
+(COMPARE x (MOVDconst [0])) -> (COMPAREregzero x)
+(COMPARE (MOVDconst [0]) x) -> (COMPAREzeroreg x)
+
+// Canonical form of BEQZ/BNEZ
+(BNE (COMPAREzeroreg x) yes no) -> (BNE (COMPAREregzero x) yes no)
+(BEQ (COMPAREzeroreg x) yes no) -> (BEQ (COMPAREregzero x) yes no)
 
 // Calls
 (StaticCall  [argwid] {target}      mem) -> (CALLstatic  [argwid] {target}      mem)

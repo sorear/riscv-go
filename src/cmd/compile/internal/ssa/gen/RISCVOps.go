@@ -75,6 +75,8 @@ func init() {
 		gp01     = regInfo{outputs: []regMask{gpMask}}
 		gp11     = regInfo{inputs: []regMask{gpMask}, outputs: []regMask{gpMask}}
 		gp21     = regInfo{inputs: []regMask{gpMask, gpMask}, outputs: []regMask{gpMask}}
+		gp1flags = regInfo{inputs: []regMask{gpMask}}
+		gp2flags = regInfo{inputs: []regMask{gpMask, gpMask}}
 		gpload   = regInfo{inputs: []regMask{gpspsbMask, 0}, outputs: []regMask{gpMask}}
 		gp11sb   = regInfo{inputs: []regMask{gpspsbMask}, outputs: []regMask{gpMask}}
 
@@ -270,10 +272,25 @@ func init() {
 		{name: "FNED", argLength: 2, reg: fp2gp, asm: "FNED", commutative: true},                                         // arg0 != arg1
 		{name: "FLTD", argLength: 2, reg: fp2gp, asm: "FLTD"},                                                            // arg0 < arg1
 		{name: "FLED", argLength: 2, reg: fp2gp, asm: "FLED"},                                                            // arg0 <= arg1
+
+		// Fictitious instructions used to pretend that branches only have one control value.
+		// Since we set clobberFlags on every other instruction, this must be the last value in the block, and the control instruction can steal its arguments.
+		{name: "COMPARE", argLength: 2, reg: gp2flags, typ: "Flags"},        // arg0 compare to arg1
+		{name: "COMPAREregzero", argLength: 1, reg: gp1flags, typ: "Flags"}, // arg0 compare to arg1
+		{name: "COMPAREzeroreg", argLength: 1, reg: gp1flags, typ: "Flags"}, // arg0 compare to arg1
+	}
+
+	for i := 0; i < len(RISCVops); i++ {
+		RISCVops[i].clobberFlags = true
 	}
 
 	RISCVblocks := []blockData{
-		{name: "BNE"}, // Control != 0 (take a register)
+		{name: "BNE"},
+		{name: "BEQ"},
+		{name: "BLT"},
+		{name: "BGE"},
+		{name: "BLTU"},
+		{name: "BGEU"},
 	}
 
 	archs = append(archs, arch{
