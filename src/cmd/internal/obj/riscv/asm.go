@@ -328,7 +328,11 @@ func follow(ctxt *obj.Link, s *obj.LSym) {}
 func setpcs(p *obj.Prog, pc int64) int64 {
 	for ; p != nil; p = p.Link {
 		p.Pc = pc
-		pc += encodingForP(p).length
+		if code := compress(p, true); code != 0 {
+			pc += 2
+		} else {
+			pc += encodingForP(p).length
+		}
 	}
 	return pc
 }
@@ -1027,11 +1031,17 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 			lastp = lastp.Link
 		}
 		oldend := lastp
-		if lastpc%8 == 4 {
-			// TODO(sorear): needs more cases when RVC
+		for i := lastpc; i%8 != 0; {
 			lastp = obj.Appendp(ctxt, lastp)
-			lastp.As = AWORD
+			lastp.As = AEBREAK
 			lastp.From = obj.Addr{Type: obj.TYPE_CONST, Offset: 0}
+			lastp.From3 = &obj.Addr{Type: obj.TYPE_REG, Reg: REG_ZERO}
+			lastp.To = obj.Addr{Type: obj.TYPE_REG, Reg: REG_ZERO}
+			if GORISCVRVC {
+				i += 2
+			} else {
+				i += 4
+			}
 		}
 		for _, req := range constPool {
 			lastp = obj.Appendp(ctxt, lastp)
@@ -1883,7 +1893,7 @@ func compressLoadStore(p *obj.Prog, store bool, float bool, typecode int, size i
 
 // some instructions have 16-bit compressed encodings; they're irregular, few in number, and not in machine readable form so just list them
 // returns 0 if there is no compressed encoding, which a valid but permanently undefined encoding
-func compress(p *obj.Prog) uint16 {
+func compress(p *obj.Prog, sizing bool) uint16 {
 	if p.Mark&NOCOMPRESS != 0 || !GORISCVRVC {
 		return 0
 	}
@@ -1911,6 +1921,10 @@ func compress(p *obj.Prog) uint16 {
 		lr := regi(p.From)
 		// Branches _fail_ if overextended because that needs to be handled in the branch extension pass (to avoid lengths changing when offsets are set)
 		if lr == 0 /* J */ {
+			if sizing && p.To.Type == obj.TYPE_BRANCH {
+				// no offset yet, don't crash
+				return 0x9001
+			}
 			// offset[11|4|9:8|10|6|7|3:1|5] << 2
 			o := uint16(immi(p.To, 12))
 			return uint16(0xA001 | ((o>>11)&1)<<12 | ((o>>4)&1)<<11 | ((o>>8)&3)<<9 | ((o>>10)&1)<<8 | ((o>>6)&1)<<7 | ((o>>7)&1)<<6 | ((o>>1)&7)<<3 | ((o>>5)&1)<<2)
@@ -1928,6 +1942,10 @@ func compress(p *obj.Prog) uint16 {
 		if rs1 >= 8 && rs1 <= 15 && rs2 == 0 {
 			// offset[8|4:3] rs1' offset[7:6|2:1|5]
 			opc := uint16(0xC001)
+			if sizing && p.To.Type == obj.TYPE_BRANCH {
+				// no offset yet, don't crash
+				return 0x9001
+			}
 			o := uint16(immi(p.To, 9))
 			if p.As == ABNE {
 				opc = 0xE001
@@ -2058,7 +2076,7 @@ func compress(p *obj.Prog) uint16 {
 // assemble emits machine code.
 // It is called at the very end of the assembly process.
 func assemble(ctxt *obj.Link, cursym *obj.LSym) {
-	var symcode []uint32 // machine code for this symbol
+	var symcode []uint16 // machine code for this symbol
 	for p := cursym.Text; p != nil; p = p.Link {
 		switch p.As {
 		case AJAL:
@@ -2100,19 +2118,22 @@ func assemble(ctxt *obj.Link, cursym *obj.LSym) {
 			rel.Type = t
 		}
 
-		if code := compress(p); code != 0 {
-			symcode = append(symcode, uint32(code)|1<<16) // append C.NOP for testing
+		if code := compress(p, false); code != 0 {
+			symcode = append(symcode, code)
 		} else {
 			enc := encodingForP(p)
 			if enc.length > 0 {
-				symcode = append(symcode, enc.encode(p))
+				code32 := enc.encode(p)
+				// parcels are always in little-endian order, even on big-endian variants
+				symcode = append(symcode, uint16(code32))
+				symcode = append(symcode, uint16(code32>>16))
 			}
 		}
 	}
-	cursym.Size = int64(4 * len(symcode))
+	cursym.Size = int64(2 * len(symcode))
 
 	cursym.Grow(cursym.Size)
-	for p, i := cursym.P, 0; i < len(symcode); p, i = p[4:], i+1 {
-		ctxt.Arch.ByteOrder.PutUint32(p, symcode[i])
+	for p, i := cursym.P, 0; i < len(symcode); p, i = p[2:], i+1 {
+		ctxt.Arch.ByteOrder.PutUint16(p, symcode[i])
 	}
 }

@@ -61,7 +61,7 @@ package riscv
 const (
 	MaxAlign  = 32 // max data alignment
 	MinAlign  = 1
-	FuncAlign = 4
+	FuncAlign = 8 // due to embedded constant pools.  can we be more precise?
 )
 
 /* Used by ../internal/ld/dwarf.go */
