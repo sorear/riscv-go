@@ -44,6 +44,7 @@ var progmap = map[obj.As]gc.ProgInfo{
 
 	// 4.2: Integer Computational Instructions
 	riscv.AADDI:  {Flags: gc.LeftRead | gc.RightWrite},
+	riscv.AADDIW: {Flags: gc.LeftRead | gc.RightWrite},
 	riscv.ASLTI:  {Flags: gc.LeftRead | gc.RightWrite},
 	riscv.ASLTIU: {Flags: gc.LeftRead | gc.RightWrite},
 	riscv.ASEQZ:  {Flags: gc.LeftRead | gc.RightWrite},

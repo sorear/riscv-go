@@ -114,11 +114,11 @@
 (SignExt8to64  x) -> (SRAI [56] (SLLI <config.fe.TypeInt64()> [56] x))
 (SignExt16to32 x) -> (SRAI [48] (SLLI <config.fe.TypeInt64()> [48] x))
 (SignExt16to64 x) -> (SRAI [48] (SLLI <config.fe.TypeInt64()> [48] x))
-(SignExt32to64 x) -> (SRAI [32] (SLLI <config.fe.TypeInt64()> [32] x))
+(SignExt32to64 x) -> (ADDIW [0] x)
 
-(ZeroExt8to16  x) -> (SRLI [56] (SLLI <config.fe.TypeUInt64()> [56] x))
-(ZeroExt8to32  x) -> (SRLI [56] (SLLI <config.fe.TypeUInt64()> [56] x))
-(ZeroExt8to64  x) -> (SRLI [56] (SLLI <config.fe.TypeUInt64()> [56] x))
+(ZeroExt8to16  x) -> (ANDI [255] x)
+(ZeroExt8to32  x) -> (ANDI [255] x)
+(ZeroExt8to64  x) -> (ANDI [255] x)
 (ZeroExt16to32 x) -> (SRLI [48] (SLLI <config.fe.TypeUInt64()> [48] x))
 (ZeroExt16to64 x) -> (SRLI [48] (SLLI <config.fe.TypeUInt64()> [48] x))
 (ZeroExt32to64 x) -> (SRLI [32] (SLLI <config.fe.TypeUInt64()> [32] x))
@@ -408,16 +408,16 @@
 
 // don't extend after proper load
 // TODO(sorear): do we need a type shim like the ARM port does?  Rematerialization should be safe here since it can only make the result more type-extended.
-(SRAI [32] (SLLI [32] x:(MOVBload _ _))) && isSigned(x.Type) -> x
+(ADDIW [0]            x:(MOVBload _ _))  && isSigned(x.Type) -> x
 (SRAI [48] (SLLI [48] x:(MOVBload _ _))) && isSigned(x.Type) -> x
 (SRAI [56] (SLLI [56] x:(MOVBload _ _))) && isSigned(x.Type) -> x
-(SRAI [32] (SLLI [32] x:(MOVHload _ _))) && isSigned(x.Type) -> x
+(ADDIW [0]            x:(MOVHload _ _))  && isSigned(x.Type) -> x
 (SRAI [48] (SLLI [48] x:(MOVHload _ _))) && isSigned(x.Type) -> x
-(SRAI [32] (SLLI [32] x:(MOVWload _ _))) && isSigned(x.Type) -> x
+(ADDIW [0]            x:(MOVWload _ _))  && isSigned(x.Type) -> x
 
 (SRLI [32] (SLLI [32] x:(MOVBUload _ _))) && !isSigned(x.Type) -> x
 (SRLI [48] (SLLI [48] x:(MOVBUload _ _))) && !isSigned(x.Type) -> x
-(SRLI [56] (SLLI [56] x:(MOVBUload _ _))) && !isSigned(x.Type) -> x
+(ANDI [255]           x:(MOVBUload _ _))  && !isSigned(x.Type) -> x
 (SRLI [32] (SLLI [32] x:(MOVHUload _ _))) && !isSigned(x.Type) -> x
 (SRLI [48] (SLLI [48] x:(MOVHUload _ _))) && !isSigned(x.Type) -> x
 (SRLI [32] (SLLI [32] x:(MOVWUload _ _))) && !isSigned(x.Type) -> x
@@ -462,6 +462,8 @@
 // generic constant folding
 (ADDI [c] (MOVDconst [d]))  -> (MOVDconst [c+d])
 (ADDI [c] (ADDI [d] x))     -> (ADDI [c+d] x)
+(ADDIW [c] (MOVDconst [d]))  -> (MOVDconst [int64(int32(c+d))])
+(ADDIW [c] (ADDI [d] x))     -> (ADDIW [c+d] x)
 (SLLI [c] (MOVDconst [d]))  -> (MOVDconst [int64(d)<<uint64(c)])
 (SRLI [c] (MOVDconst [d]))  -> (MOVDconst [int64(uint64(d)>>uint64(c))])
 (SRAI [c] (MOVDconst [d]))  -> (MOVDconst [int64(d)>>uint64(c)])
