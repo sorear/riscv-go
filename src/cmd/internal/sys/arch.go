@@ -166,7 +166,7 @@ var ArchRISCV = &Arch{
 	IntSize:   8,
 	PtrSize:   8,
 	RegSize:   8,
-	MinLC:     4,
+	MinLC:     2,
 }
 
 var ArchS390X = &Arch{
