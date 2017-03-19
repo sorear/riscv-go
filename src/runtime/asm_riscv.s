@@ -558,7 +558,8 @@ CALLFN(·call1073741824, 1073741824)
 // The top-most function running on a goroutine
 // returns to goexit+PCQuantum.
 TEXT runtime·goexit(SB),NOSPLIT,$-8-0
-	MOV	ZERO, ZERO	// NOP
+	MOV	A0, A0	// NOP
+	MOV	A0, A0	// NOP
 	CALL	runtime·goexit1(SB)	// does not return
 	// traceback from goexit1 must hit code range of goexit
 	MOV	ZERO, ZERO	// NOP
