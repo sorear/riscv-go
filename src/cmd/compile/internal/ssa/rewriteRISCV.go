@@ -346,8 +346,6 @@ func rewriteValueRISCV(v *Value, config *Config) bool {
 		return rewriteValueRISCV_OpRISCVMOVBload(v, config)
 	case OpRISCVMOVBstore:
 		return rewriteValueRISCV_OpRISCVMOVBstore(v, config)
-	case OpRISCVMOVDconst:
-		return rewriteValueRISCV_OpRISCVMOVDconst(v, config)
 	case OpRISCVMOVDload:
 		return rewriteValueRISCV_OpRISCVMOVDload(v, config)
 	case OpRISCVMOVDstore:
@@ -3739,53 +3737,6 @@ func rewriteValueRISCV_OpRISCVMOVBstore(v *Value, config *Config) bool {
 		v.AddArg(base)
 		v.AddArg(val)
 		v.AddArg(mem)
-		return true
-	}
-	return false
-}
-func rewriteValueRISCV_OpRISCVMOVDconst(v *Value, config *Config) bool {
-	b := v.Block
-	_ = b
-	// match: (MOVDconst <t> [c])
-	// cond: !is32Bit(c) && int32(c) <  0
-	// result: (ADD (SLLI <t> [32] (MOVDconst [c>>32+1])) (MOVDconst [int64(int32(c))]))
-	for {
-		t := v.Type
-		c := v.AuxInt
-		if !(!is32Bit(c) && int32(c) < 0) {
-			break
-		}
-		v.reset(OpRISCVADD)
-		v0 := b.NewValue0(v.Pos, OpRISCVSLLI, t)
-		v0.AuxInt = 32
-		v1 := b.NewValue0(v.Pos, OpRISCVMOVDconst, config.fe.TypeUInt64())
-		v1.AuxInt = c>>32 + 1
-		v0.AddArg(v1)
-		v.AddArg(v0)
-		v2 := b.NewValue0(v.Pos, OpRISCVMOVDconst, config.fe.TypeUInt64())
-		v2.AuxInt = int64(int32(c))
-		v.AddArg(v2)
-		return true
-	}
-	// match: (MOVDconst <t> [c])
-	// cond: !is32Bit(c) && int32(c) >= 0
-	// result: (ADD (SLLI <t> [32] (MOVDconst [c>>32+0])) (MOVDconst [int64(int32(c))]))
-	for {
-		t := v.Type
-		c := v.AuxInt
-		if !(!is32Bit(c) && int32(c) >= 0) {
-			break
-		}
-		v.reset(OpRISCVADD)
-		v0 := b.NewValue0(v.Pos, OpRISCVSLLI, t)
-		v0.AuxInt = 32
-		v1 := b.NewValue0(v.Pos, OpRISCVMOVDconst, config.fe.TypeUInt64())
-		v1.AuxInt = c>>32 + 0
-		v0.AddArg(v1)
-		v.AddArg(v0)
-		v2 := b.NewValue0(v.Pos, OpRISCVMOVDconst, config.fe.TypeUInt64())
-		v2.AuxInt = int64(int32(c))
-		v.AddArg(v2)
 		return true
 	}
 	return false
