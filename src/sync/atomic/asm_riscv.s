@@ -22,15 +22,23 @@
 // Intel, aq corresponds to an lfence, rl to an sfence, and aq+rl to an mfence
 // (or a lock prefix).
 //
-// Go's memory model requires that
-//   - if a read happens after a write, the read must observe the write, and
-//     that
-//   - if a read happens concurrently with a write, the read may observe the
-//     write.
-// aq is sufficient to guarantee this, so that's what we use here. (This jibes
-// with ARM, which uses dmb ishst.)
+// Go's memory model does not provide semantics for sync/atomic, but proper
+// operation of sync.Mutex requires that atomic operations serve as memory
+// barriers in both Lock and Unlock.  We employ sequential consistency, per
+// https://github.com/golang/go/issues/5045#issuecomment-252730563 .
 
 #include "textflag.h"
+
+// for A0-A7 add 10 to get the register number
+#define AMOWSC(op,rd,rs1,rs2) WORD $0x0600202f+rd<<7+rs1<<15+rs2<<20+op<<27
+#define AMODSC(op,rd,rs1,rs2) WORD $0x0600302f+rd<<7+rs1<<15+rs2<<20+op<<27
+#define ADD_ 0
+#define SWAP_ 1
+#define LR_ 2
+#define SC_ 3
+#define OR_ 8
+#define AND_ 12
+#define FENCE WORD $0x0ff0000f
 
 TEXT ·SwapInt32(SB),NOSPLIT,$0-20
 	JMP	·SwapUint32(SB)
@@ -39,17 +47,17 @@ TEXT ·SwapInt64(SB),NOSPLIT,$0-24
 	JMP	·SwapUint64(SB)
 
 TEXT ·SwapUint32(SB),NOSPLIT,$0-20
-	MOV	addr+0(FP), A0
+	MOV	ptr+0(FP), A0
 	MOVW	new+8(FP), A1
-	WORD	$0x0cb525af	// amoswap.w.aq a1,a1,(a0)
-	MOVW	A1, old+16(FP)
+	AMOWSC(SWAP_,11,10,11)
+	MOVW	A1, ret+16(FP)
 	RET
 
 TEXT ·SwapUint64(SB),NOSPLIT,$0-24
-	MOV	addr+0(FP), A0
+	MOV	ptr+0(FP), A0
 	MOV	new+8(FP), A1
-	WORD	$0x0cb535af	// amoswap.d.aq a1,a1,(a0)
-	MOV	A1, old+16(FP)
+	AMODSC(SWAP_,11,10,11)
+	MOV	A1, ret+16(FP)
 	RET
 
 TEXT ·SwapUintptr(SB),NOSPLIT,$0-24
@@ -62,37 +70,35 @@ TEXT ·CompareAndSwapInt64(SB),NOSPLIT,$0-25
 	JMP	·CompareAndSwapUint64(SB)
 
 TEXT ·CompareAndSwapUint32(SB),NOSPLIT,$0-17
-	MOV	addr+0(FP), A0
+	MOV	ptr+0(FP), A0
 	MOVW	old+8(FP), A1
 	MOVW	new+12(FP), A2
-cas:
-	WORD	$0x140522af	// lr.w.aq t0,(a0)
-	BNE	T0, A1, fail
-	WORD	$0x1cc5252f	// sc.w.aq a0,a2,(a0)
-	// a0 = 0 iff the sc succeeded. Convert that to a boolean.
-	SLTIU	$1, A0, A0
-	MOV	A0, swapped+16(FP)
+again:
+	AMOWSC(LR_,13,10,0)	// lr.w.sc a3,(a0)
+	BNE	A3, A1, fail
+	AMOWSC(SC_,14,10,12)	// sc.w.sc a0,a2,(a0)
+	BNE	A4, ZERO, again // a4=0 if sc succeeded
+	MOV	$1, A0
+	MOVB	A0, ret+16(FP)
 	RET
 fail:
-	MOV	$0, A0
-	MOV	A0, swapped+16(FP)
+	MOVB	ZERO, ret+16(FP)
 	RET
 
 TEXT ·CompareAndSwapUint64(SB),NOSPLIT,$0-25
-	MOV	addr+0(FP), A0
+	MOV	ptr+0(FP), A0
 	MOV	old+8(FP), A1
 	MOV	new+16(FP), A2
-cas:
-	WORD	$0x140532af	// lr.d.aq t0,(a0)
-	BNE	T0, A1, fail
-	WORD	$0x1cc5352f	// sc.d.aq a0,a2,(a0)
-	// a0 = 0 iff the sc succeeded, a0 = 0. Convert that to a boolean.
-	SLTIU	$1, A0, A0
-	MOV	A0, swapped+24(FP)
+again:
+	AMODSC(LR_,13,10,0)
+	BNE	A3, A1, fail
+	AMODSC(SC_,14,10,12)
+	BNE	A4, ZERO, again
+	MOV	$1, A0
+	MOVB	A0, ret+24(FP)
 	RET
 fail:
-	MOV	$0, A0
-	MOV	A0, swapped+24(FP)
+	MOVB	ZERO, ret+24(FP)
 	RET
 
 TEXT ·CompareAndSwapUintptr(SB),NOSPLIT,$0-25
@@ -102,22 +108,22 @@ TEXT ·AddInt32(SB),NOSPLIT,$0-20
 	JMP	·AddUint32(SB)
 
 TEXT ·AddUint32(SB),NOSPLIT,$0-20
-	MOV	addr+0(FP), A0
+	MOV	ptr+0(FP), A0
 	MOVW	delta+8(FP), A1
-	WORD	$0x04b5252f	// amoadd.w.aq a0,a1,(a0)
-	ADD	A0, A1
-	MOVW	A1, new+16(FP)
+	AMOWSC(ADD_,12,10,11)
+	ADD	A2,A1,A0
+	MOVW	A0, ret+16(FP)
 	RET
 
 TEXT ·AddInt64(SB),NOSPLIT,$0-24
 	JMP	·AddUint64(SB)
 
 TEXT ·AddUint64(SB),NOSPLIT,$0-24
-	MOV	addr+0(FP), A0
+	MOV	ptr+0(FP), A0
 	MOV	delta+8(FP), A1
-	WORD	$0x04b5352f	// amoadd.d.aq a0,a1,(a0)
-	ADD	A0, A1
-	MOV	A1, new+16(FP)
+	AMODSC(ADD_,12,10,11)
+	ADD	A2,A1,A0
+	MOV	A0, ret+16(FP)
 	RET
 
 TEXT ·AddUintptr(SB),NOSPLIT,$0-24
@@ -130,19 +136,15 @@ TEXT ·LoadInt64(SB),NOSPLIT,$0-16
 	JMP	·LoadUint64(SB)
 
 TEXT ·LoadUint32(SB),NOSPLIT,$0-12
-	MOV	addr+0(FP), A0
-	// Since addr is aligned (see comments in doc.go), this load is atomic
-	// automatically.
-	MOVW	(A0), A0
-	MOVW	A0, val+8(FP)
+	MOV	ptr+0(FP), A0
+	AMOWSC(LR_,10,10,0)
+	MOVW	A0, ret+8(FP)
 	RET
 
 TEXT ·LoadUint64(SB),NOSPLIT,$0-16
-	MOV	addr+0(FP), A0
-	// Since addr is aligned (see comments in doc.go), this load is atomic
-	// automatically.
-	MOV	(A0), A0
-	MOV	A0, val+8(FP)
+	MOV	ptr+0(FP), A0
+	AMODSC(LR_,10,10,0)
+	MOV	A0, ret+8(FP)
 	RET
 
 TEXT ·LoadUintptr(SB),NOSPLIT,$0-16
@@ -158,19 +160,15 @@ TEXT ·StoreInt64(SB),NOSPLIT,$0-16
 	JMP	·StoreUint64(SB)
 
 TEXT ·StoreUint32(SB),NOSPLIT,$0-12
-	MOV	addr+0(FP), A0
+	MOV	ptr+0(FP), A0
 	MOVW	val+8(FP), A1
-	// Since addr is aligned (see comments in doc.go), this store is atomic
-	// automatically.
-	MOVW	A1, (A0)
+	AMOWSC(SWAP_,0,10,11)
 	RET
 
 TEXT ·StoreUint64(SB),NOSPLIT,$0-16
-	MOV	addr+0(FP), A0
+	MOV	ptr+0(FP), A0
 	MOV	val+8(FP), A1
-	// Since addr is aligned (see comments in doc.go), this store is atomic
-	// automatically.
-	MOV	A1, (A0)
+	AMODSC(SWAP_,0,10,11)
 	RET
 
 TEXT ·StoreUintptr(SB),NOSPLIT,$0-16
