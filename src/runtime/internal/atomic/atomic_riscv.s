@@ -4,6 +4,10 @@
 
 #include "textflag.h"
 
+// We aim for sequential consistency for all operations, following
+// https://github.com/golang/go/issues/5045#issuecomment-252730563
+
+// for A0-A7 add 10 to get the register number
 #define AMOWSC(op,rd,rs1,rs2) WORD $0x0600202f+rd<<7+rs1<<15+rs2<<20+op<<27
 #define AMODSC(op,rd,rs1,rs2) WORD $0x0600302f+rd<<7+rs1<<15+rs2<<20+op<<27
 #define ADD_ 0
