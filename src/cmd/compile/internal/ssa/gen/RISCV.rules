@@ -3,18 +3,81 @@
 // license that can be found in the LICENSE file.
 
 // Optimizations TODO:
-// * Somehow track when values are already zero/signed-extended, avoid re-extending.
-// * Use SLTI and SLTIU for comparisons to constants, instead of SLT/SLTU with constants in registers
-// * Find a more efficient way to do zero/sign extension than left+right shift.
-//   There are many other options (store then load-extend, LUI+ANDI for zero extend, special case 32->64, ...),
-//   but left+right shift is simple and uniform, and we don't have real hardware to do perf testing on anyway.
-// * Use the zero register instead of moving 0 into a register.
-// * Add rules to avoid generating a temp bool value for (If (SLT[U] ...) ...).
-// * Optimize left and right shift by simplifying SLTIU, Neg, and ADD for
-//   constants.
+
+// Saves static and dynamic instructions with no cost:
+//
+// * Track zero and sign extended values and avoid re-extending.  We handle most
+//   of the easy cases now, but there are harder ones that result in unneeded
+//   work; seriously consider making _all_ 32-bit values sign-extended as that
+//   will work through phis.
+//
+// * Fold zero and sign extension into loads (transforming MOVW into MOVWU or
+//   conversely).
+//
 // * Arrange for non-trivial Zero and Move lowerings to use aligned loads and stores.
-// * Eliminate zero immediate shifts, adds, etc.
-// * Use a Duff's device for some moves and zeros.
+//
+// * Support narrow large constants with a li+slli instead of using constant pool.
+//
+// * Teach regalloc that, while resultInArg0: false for RISC-V instructions, they
+//   have better encodings if one of the arg registers can be reused.
+//
+// * We are in a few cases generating add a0,a1,a0 and the like; commuting these is
+//   an easy win in ssa->Prog (CL 353444)
+//
+// * Slicemask lowering is generating unnecessarily large instructions (CL 353443)
+//
+// * ra could be allocated in non-leaf functions, but currently isn't.  We need to
+//   remove tp and gp from the rotation at some point for cgo + signals to work;
+//   ra could be added then.
+
+// Saves bytes but might harm the critical path on some implementaions:
+//
+// * Rewrite LI+BEQ for values used once as ADDI+BEQZ (2 bytes less and probably a
+//   small win on single-issue, but delays branch resolution by 1 cycle on anything
+//   superscalar)
+//
+// * Use frame sizes which are a multiple of 16, for C.ADDISP16 support; also the
+//   ELF C ABI requires x2 to be kept 16-byte-aligned, and float64 support on
+//   riscv32 will need at least 8-byte alignment for performance, so there are
+//   several reasons to to this.
+//
+// * Stack split sequences could be shortened saving ~0.2% by adding a version of
+//   morestack_noctxt that does ADD $-12, T0 first.  This is incompatible with
+//   moving the split stack code to the end of the function.
+//
+// * Avoid rematerializing large constants and address-generation sequences; a
+//   spill and load is likely to be shorter (and might be faster on some
+//   microarchitectures?); more aggressively AUIPC+FOO could be split and the AUIPC
+//   tokens CSE'd, but global accesses are rare.
+
+// General changes that will have a benefit for RISC-V:
+//
+// * Call-saved registers
+//
+// * Move runtime.writeBarrier into struct g (this will save 1.5% in code size;
+//   we can have the scheduler copy the global flag into each g before running it,
+//   and things will work out because the global flag is only modified with the
+//   world stopped.  ~1% benefit for most RISCs, x86 can keep doing what it is now)
+//
+// * RISC-V has FMA instructions which are a small win for the toolchain but could
+//   be very important for other things.  There seems to be no core support for FMA.
+
+// Other dubious things:
+//
+// * Use a Duff's device for some moves and zeros. (various comments imply this is
+//   no longer considered a win?)
+//
+// * Rocket devs have expressed that div -> mul strength reduction is often not
+//   worthwhile, but the SSA core currently does it for all arches unconditionally.
+//
+// * RISC-V compressed load and store instructions have a larger range for larger
+//   types, so we ought to keep uint32s closer to sp than uint64s, but the
+//   automatic stack frame sorting is the other way around.
+//
+// * Relaxation would be a fairly invasive linker change, but it would allow
+//   references to popular variables in statically-linked programs to become
+//   gp-relative.  The most popular variable of all could be more profitably moved
+//   into the struct g though.
 
 // Lowering arithmetic
 (Add64 x y) -> (ADD x y)
