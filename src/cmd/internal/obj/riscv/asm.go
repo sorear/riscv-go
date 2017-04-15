@@ -105,32 +105,15 @@ func lowerjalr(p *obj.Prog) {
 // lr is the link register to use for the JALR.
 //
 // p must be a CALL or JMP.
-func jalrToSym(ctxt *obj.Link, p *obj.Prog, lr int16) *obj.Prog {
+func jalrToSym(ctxt *obj.Link, p *obj.Prog, lr int16) {
 	if p.As != obj.ACALL && p.As != obj.AJMP {
 		ctxt.Diag("unexpected Prog in jalrToSym: %v", p)
-		return p
+		return
 	}
 
-	// AUIPC $off_hi, TMP
-	// ADDI $off_lo, TMP
-	// JALR lr, TMP
-	to := p.To
-
-	p.As = AAUIPC
-	// This offset isn't really encoded with either instruction. It will be
-	// extracted for a relocation later.
-	p.From = obj.Addr{Type: obj.TYPE_CONST, Offset: to.Offset, Sym: to.Sym}
-	p.From3 = &obj.Addr{}
-	p.To = obj.Addr{Type: obj.TYPE_REG, Reg: REG_TMP}
-	p.Mark |= NEED_CALL_RELOC
-	p = obj.Appendp(ctxt, p)
-
-	p.As = AJALR
-	p.From = obj.Addr{Type: obj.TYPE_CONST}
-	p.From3 = &obj.Addr{Type: obj.TYPE_REG, Reg: REG_TMP}
-	p.To = obj.Addr{Type: obj.TYPE_REG, Reg: lr}
-
-	return p
+	p.As = AJAL
+	p.To.Type = obj.TYPE_CONST // our encoding functions want to see this, the value will be handled by the reloc
+	p.From = obj.Addr{Type: obj.TYPE_REG, Reg: lr}
 }
 
 // movtol converts a MOV mnemonic into the corresponding load instruction.
@@ -451,6 +434,8 @@ func replaceWithLoadImm(ctxt *obj.Link, pool *[]poolReq, p *obj.Prog, into int16
 		p.To = obj.Addr{Type: obj.TYPE_REG, Reg: into}
 	}
 }
+
+var deferreturn *obj.LSym
 
 // preprocess generates prologue and epilogue code, computes PC-relative branch
 // and jump offsets, and resolves psuedo-registers.
@@ -954,25 +939,53 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 					rescan = true
 				}
 			case AJAL:
-				if p.Pcond == nil {
-					panic("intersymbol jumps should be expressed as AUIPC+JALR")
-				}
-				offset := p.Pcond.Pc - p.Pc
-				if offset < -(1<<20) || (1<<20) <= offset {
-					// Replace with 2-instruction sequence
-					jmp := obj.Appendp(ctxt, p)
-					jmp.As = AJALR
-					jmp.From = obj.Addr{Type: obj.TYPE_CONST, Offset: 0}
-					jmp.To = p.From
-					jmp.From3 = &obj.Addr{Type: obj.TYPE_REG, Reg: REG_TMP}
-					// Assuming TMP is not live across J instructions, since it's reserved by SSA that should be OK
+				if p.Pcond != nil {
+					// Internal jump.  Rewrite if it doesn't fit right now.
+					offset := p.Pcond.Pc - p.Pc
+					if offset < -(1<<20) || (1<<20) <= offset {
+						// Replace with 2-instruction sequence
+						jmp := obj.Appendp(ctxt, p)
+						jmp.As = AJALR
+						jmp.From = obj.Addr{Type: obj.TYPE_CONST, Offset: 0}
+						jmp.To = p.From
+						jmp.From3 = &obj.Addr{Type: obj.TYPE_REG, Reg: REG_TMP}
+						// Assuming TMP is not live across J instructions, since it's reserved by SSA that should be OK
 
-					p.As = AAUIPC
-					p.From = obj.Addr{Type: obj.TYPE_BRANCH} // not generally valid, fixed up in the next loop
-					p.From3 = &obj.Addr{}
-					p.To = obj.Addr{Type: obj.TYPE_REG, Reg: REG_TMP}
+						p.As = AAUIPC
+						p.From = obj.Addr{Type: obj.TYPE_BRANCH} // not generally valid, fixed up in the next loop
+						p.From3 = &obj.Addr{}
+						p.To = obj.Addr{Type: obj.TYPE_REG, Reg: REG_TMP}
 
-					rescan = true
+						rescan = true
+					}
+				} else {
+					// Call.  Normally this will either fit or the linker will use
+					// a trampoline, but if the function and its required trampolines
+					// take up more than 1 MiB then a JAL won't be able to even reach
+					// the trampolines.  Conservatively allow trampoline space 3x
+					// function size.
+					//
+					// Calls to runtime.deferreturn have a size known to the
+					// implementation of runtime.jmpdefer and it is simplest to
+					// expand them unconditionally.
+					if deferreturn == nil {
+						deferreturn = obj.Linklookup(ctxt, "runtime.deferreturn", 0)
+					}
+					if p.To.Sym == deferreturn || lastpc >= (1<<18) { // 256 KiB
+						jmp := obj.Appendp(ctxt, p)
+						jmp.As = AJALR
+						jmp.From = obj.Addr{Type: obj.TYPE_CONST, Offset: 0}
+						jmp.To = p.From
+						jmp.From3 = &obj.Addr{Type: obj.TYPE_REG, Reg: REG_TMP}
+
+						p.As = AAUIPC
+						p.From = obj.Addr{Type: obj.TYPE_CONST, Offset: p.To.Offset, Sym: p.To.Sym}
+						p.From3 = &obj.Addr{}
+						p.To = obj.Addr{Type: obj.TYPE_REG, Reg: REG_TMP}
+						p.Mark |= NEED_CALL_RELOC2
+
+						rescan = true
+					}
 				}
 			}
 		}
@@ -1014,12 +1027,9 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 	for p := cursym.Text; p != nil; p = p.Link {
 		switch p.As {
 		case ABEQ, ABNE, ABLT, ABGE, ABLTU, ABGEU, AJAL:
-			switch p.To.Type {
-			case obj.TYPE_BRANCH:
+			if p.To.Type == obj.TYPE_BRANCH {
 				p.To.Type = obj.TYPE_CONST
 				p.To.Offset = p.Pcond.Pc - p.Pc
-			case obj.TYPE_MEM:
-				panic("unhandled type")
 			}
 		case AAUIPC:
 			if p.From.Type == obj.TYPE_BRANCH {
@@ -1154,9 +1164,9 @@ func stacksplit(ctxt *obj.Link, p *obj.Prog, framesize int64) *obj.Prog {
 
 	// JAL	runtime.morestack(SB)
 	p = obj.Appendp(ctxt, p)
-	p.As = obj.ACALL
-	p.Reg = REG_T0
-	p.To.Type = obj.TYPE_BRANCH
+	p.As = AJAL
+	p.From = obj.Addr{Type: obj.TYPE_REG, Reg: REG_T0}
+	p.To.Type = obj.TYPE_CONST // TODO(sorear): should this be MEM?
 	if ctxt.Cursym.CFunc() {
 		p.To.Sym = obj.Linklookup(ctxt, "runtime.morestackc", 0)
 	} else if ctxt.Cursym.Text.From3.Offset&obj.NEEDCTXT == 0 {
@@ -1167,7 +1177,6 @@ func stacksplit(ctxt *obj.Link, p *obj.Prog, framesize int64) *obj.Prog {
 	if to_more != nil {
 		to_more.Pcond = p
 	}
-	p = jalrToSym(ctxt, p, REG_T0)
 
 	// JMP	start
 	p = obj.Appendp(ctxt, p)
@@ -1802,14 +1811,24 @@ func assemble(ctxt *obj.Link, cursym *obj.LSym) {
 	var symcode []uint32 // machine code for this symbol
 	for p := cursym.Text; p != nil; p = p.Link {
 		switch p.As {
+		case AJAL:
+			if p.To.Sym != nil {
+				// This is a short CALL/JMP.  It may need a trampoline to reach the full text segment.
+				rel := obj.Addrel(cursym)
+				rel.Off = int32(p.Pc)
+				rel.Siz = 4
+				rel.Sym = p.To.Sym
+				rel.Add = p.To.Offset
+				rel.Type = obj.R_CALLRISCV1
+			}
 		case AAUIPC:
 			var t obj.RelocType
 			if p.Mark&NEED_PCREL_ITYPE_RELOC == NEED_PCREL_ITYPE_RELOC {
 				t = obj.R_RISCV_PCREL_ITYPE
 			} else if p.Mark&NEED_PCREL_STYPE_RELOC == NEED_PCREL_STYPE_RELOC {
 				t = obj.R_RISCV_PCREL_STYPE
-			} else if p.Mark&NEED_CALL_RELOC == NEED_CALL_RELOC {
-				t = obj.R_CALLRISCV
+			} else if p.Mark&NEED_CALL_RELOC2 == NEED_CALL_RELOC2 {
+				t = obj.R_CALLRISCV2
 			} else {
 				break
 			}
