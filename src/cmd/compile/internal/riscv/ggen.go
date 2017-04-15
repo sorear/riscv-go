@@ -17,6 +17,14 @@ func defframe(ptxt *obj.Prog) {
 	ptxt.To.Val = int32(gc.Rnd(gc.Curfn.Type.ArgWidth(), int64(gc.Widthptr)))
 	frame := uint32(gc.Rnd(gc.Stksize+gc.Maxarg, int64(gc.Widthreg)))
 
+	// RISC-V C ABI requires that the frame size be a multiple of 16 (after liblink adds the saved LR).
+	// Not doing cgo yet but this allows us to use C.ADDI16SP in more cases
+	if frame != 0 {
+		frame += uint32(gc.Widthptr)
+		frame = (frame + 15) &^ 15
+		frame -= uint32(gc.Widthptr)
+	}
+
 	ptxt.To.Offset = int64(frame)
 
 	// insert code to zero ambiguously live variables
