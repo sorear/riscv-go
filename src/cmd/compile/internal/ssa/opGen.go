@@ -17963,10 +17963,10 @@ var opcodeTable = [...]opInfo{
 		faultOnNilArg0: true,
 		reg: regInfo{
 			inputs: []inputInfo{
-				{0, 4096},       // T0
+				{0, 4},          // A0
 				{1, 1073739007}, // S0 S1 A0 A1 A2 A3 A4 A5 GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5
 			},
-			clobbers: 4096, // T0
+			clobbers: 4, // A0
 		},
 	},
 	{
@@ -17978,11 +17978,11 @@ var opcodeTable = [...]opInfo{
 		faultOnNilArg1: true,
 		reg: regInfo{
 			inputs: []inputInfo{
-				{0, 4096},       // T0
-				{1, 8192},       // T1
-				{2, 1073722623}, // S0 S1 A0 A1 A2 A3 A4 A5 GP T0 T1 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5
+				{0, 4},          // A0
+				{1, 8},          // A1
+				{2, 1073738991}, // S0 S1 A0 A1 A3 A4 A5 GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5
 			},
-			clobbers: 28672, // T0 T1 T2
+			clobbers: 28, // A0 A1 A2
 		},
 	},
 	{

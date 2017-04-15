@@ -65,12 +65,12 @@ func zerorange(p *obj.Prog, frame int64, lo int64, hi int64) *obj.Prog {
 		return p
 	}
 	// Loop, zeroing one byte at a time.
-	// ADD	$(frame+lo), SP, T0
-	// ADD	$(cnt), T0, T1
+	// ADD	$(frame+lo), SP, A0
+	// ADD	$(cnt), A0, A1
 	// loop:
-	// 	MOVB	ZERO, (T0)
-	// 	ADD	$1, T0
-	//	BNE	T0, T1, loop
+	// 	MOVB	ZERO, (A0)
+	// 	ADD	$1, A0
+	//	BNE	A0, A1, loop
 
 	// lo is an offset relative to the frame pointer, which we can't use from this function,
 	// but adding the true frame size makes it into an offset from the stack pointer.  frame
@@ -79,29 +79,29 @@ func zerorange(p *obj.Prog, frame int64, lo int64, hi int64) *obj.Prog {
 	p = appendpp(p, riscv.AADD,
 		obj.Addr{Type: obj.TYPE_CONST, Offset: int64(gc.Widthptr) + frame + lo},
 		&obj.Addr{Type: obj.TYPE_REG, Reg: riscv.REG_SP},
-		obj.Addr{Type: obj.TYPE_REG, Reg: riscv.REG_T0},
+		obj.Addr{Type: obj.TYPE_REG, Reg: riscv.REG_A0},
 		0)
 	p = appendpp(p, riscv.AADD,
 		obj.Addr{Type: obj.TYPE_CONST, Offset: cnt},
-		&obj.Addr{Type: obj.TYPE_REG, Reg: riscv.REG_T0},
-		obj.Addr{Type: obj.TYPE_REG, Reg: riscv.REG_T1},
+		&obj.Addr{Type: obj.TYPE_REG, Reg: riscv.REG_A0},
+		obj.Addr{Type: obj.TYPE_REG, Reg: riscv.REG_A1},
 		0)
 	p = appendpp(p, riscv.AMOVB,
 		obj.Addr{Type: obj.TYPE_REG, Reg: riscv.REG_ZERO},
 		nil,
-		obj.Addr{Type: obj.TYPE_MEM, Reg: riscv.REG_T0},
+		obj.Addr{Type: obj.TYPE_MEM, Reg: riscv.REG_A0},
 		0)
 	loop := p
 	p = appendpp(p, riscv.AADD,
 		obj.Addr{Type: obj.TYPE_CONST, Offset: 1},
 		nil,
-		obj.Addr{Type: obj.TYPE_REG, Reg: riscv.REG_T0},
+		obj.Addr{Type: obj.TYPE_REG, Reg: riscv.REG_A0},
 		0)
 	p = appendpp(p, riscv.ABNE,
-		obj.Addr{Type: obj.TYPE_REG, Reg: riscv.REG_T0},
+		obj.Addr{Type: obj.TYPE_REG, Reg: riscv.REG_A0},
 		nil,
 		obj.Addr{Type: obj.TYPE_BRANCH},
-		riscv.REG_T1)
+		riscv.REG_A1)
 	gc.Patch(p, loop)
 	return p
 }
