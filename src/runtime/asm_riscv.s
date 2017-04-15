@@ -169,10 +169,7 @@ nobar:
 TEXT runtime·fastrand(SB),NOSPLIT,$0-4
 	MOV	g_m(g), A2
 	MOVWU	m_fastrand(A2), A1
-	ADD	A1, A1
-	// TODO(sorear): Just use ADDW once an encoding is added
-	SLL	$32, A1
-	SRA	$32, A1
+	ADDW	A1, A1
 	BGE	A1, ZERO, noxor
 	MOV	$0x88888eef - 1<<32, A0
 	XOR	A0, A1
