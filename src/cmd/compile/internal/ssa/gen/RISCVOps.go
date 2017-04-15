@@ -211,8 +211,8 @@ func init() {
 			aux:       "Int64",
 			argLength: 3,
 			reg: regInfo{
-				inputs:   []regMask{regNamed["T0"], gpMask},
-				clobbers: regNamed["T0"],
+				inputs:   []regMask{regNamed["A0"], gpMask},
+				clobbers: regNamed["A0"],
 			},
 			typ:            "Mem",
 			faultOnNilArg0: true,
@@ -236,8 +236,8 @@ func init() {
 			aux:       "Int64",
 			argLength: 4,
 			reg: regInfo{
-				inputs:   []regMask{regNamed["T0"], regNamed["T1"], gpMask &^ regNamed["T2"]},
-				clobbers: regNamed["T0"] | regNamed["T1"] | regNamed["T2"],
+				inputs:   []regMask{regNamed["A0"], regNamed["A1"], gpMask &^ regNamed["A2"]},
+				clobbers: regNamed["A0"] | regNamed["A1"] | regNamed["A2"],
 			},
 			typ:            "Mem",
 			faultOnNilArg0: true,
