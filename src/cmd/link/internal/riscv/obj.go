@@ -53,6 +53,8 @@ func linkarchinit() {
 	ld.Thearch.Archinit = archinit
 	ld.Thearch.Archreloc = archreloc
 	ld.Thearch.Archrelocvariant = archrelocvariant
+	ld.Thearch.Trampoline = trampoline
+	ld.Thearch.TrampsIterate = true
 	ld.Thearch.Asmb = asmb
 	ld.Thearch.Elfreloc1 = elfreloc1
 	ld.Thearch.Elfsetupplt = elfsetupplt

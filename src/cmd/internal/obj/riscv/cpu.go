@@ -196,7 +196,7 @@ const (
 	// NEED_CALL_RELOC is set on AUIPC instructions to indicate that
 	// it is the first instruction in an AUIPC + I-type pair that needs a
 	// R_CALLRISCV relocation.
-	NEED_CALL_RELOC = 1 << iota
+	NEED_CALL_RELOC2
 
 	// NEED_PCREL_STYPE_RELOC is set on AUIPC instructions to indicate that
 	// it is the first instruction in an AUIPC + S-type pair that needs a

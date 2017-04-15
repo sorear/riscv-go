@@ -62,9 +62,89 @@ func machoreloc1(s *ld.Symbol, r *ld.Reloc, sectoff int64) int {
 	return -1
 }
 
+func jumpInRange(s *ld.Symbol, r *ld.Reloc, rsym *ld.Symbol, radd int64) bool {
+	pc := s.Value + int64(r.Off)
+	off := ld.Symaddr(rsym) + radd - pc
+	return off >= -(1<<20) && off < (1<<20)
+}
+
+// Convert the direct jump relocation r to refer to a trampoline if the target is too far
+func trampoline(ctxt *ld.Link, r *ld.Reloc, s *ld.Symbol) {
+	switch r.Type {
+	case obj.R_CALLRISCV1:
+		if jumpInRange(s, r, r.Sym, r.Add) {
+			return
+		}
+
+		// direct call too far, need to insert trampoline.
+		// look up existing trampolines first. if we found one within the range
+		// of direct call, we can reuse it. otherwise create a new one.
+		if r.Sym.Attr&ld.AttrTrampoline != 0 {
+			// we had reused a trampoline, but now it's too far
+			// start fresh
+			r.Add = r.Sym.R[0].Add
+			r.Sym = r.Sym.R[0].Sym
+		}
+
+		var tramp *ld.Symbol
+		for i := 0; ; i++ {
+			name := r.Sym.Name + fmt.Sprintf("%+d-tramp%d", r.Add, i)
+			tramp = ctxt.Syms.Lookup(name, int(r.Sym.Version))
+			if tramp.Type == obj.SDYNIMPORT {
+				// don't reuse trampoline defined in other module
+				continue
+			}
+			if tramp.Value == 0 {
+				// either the trampoline does not exist -- we need to create one,
+				// or found one the address which is not assigned -- this will be
+				// laid down immediately after the current function. use this one.
+				break
+			}
+
+			if jumpInRange(s, r, tramp, 0) {
+				// found an existing trampoline that is not too far
+				// we can just use it
+				break
+			}
+		}
+		if tramp.Type == 0 {
+			// trampoline does not exist, create one
+			ctxt.AddTramp(tramp)
+			if ctxt.DynlinkingGo() {
+				ld.Errorf(s, "dynamic linking not implemented")
+			} else {
+				gentramp(tramp, r.Sym, r.Add)
+			}
+		}
+		// modify reloc to point to tramp, which will be resolved later
+		r.Sym = tramp
+		r.Add = 0
+		r.Done = 0
+	default:
+		ld.Errorf(s, "trampoline called with non-jump reloc: %v", r.Type)
+	}
+}
+
+// generate a trampoline to target+offset without PLT ind
+func gentramp(tramp, target *ld.Symbol, offset int64) {
+	tramp.Size = 8 // 2 instructions
+	tramp.P = make([]byte, tramp.Size)
+	o1 := uint32(0x00000f97) // AUIPC T6, 0
+	o2 := uint32(0x000f8067) // JR    T6
+	ld.SysArch.ByteOrder.PutUint32(tramp.P, o1)
+	ld.SysArch.ByteOrder.PutUint32(tramp.P[4:], o2)
+
+	r := ld.Addrel(tramp)
+	r.Off = 0
+	r.Type = obj.R_CALLRISCV2
+	r.Siz = 8
+	r.Sym = target
+	r.Add = offset
+}
+
 func archreloc(ctxt *ld.Link, r *ld.Reloc, s *ld.Symbol, val *int64) int {
 	switch r.Type {
-	case obj.R_RISCV_PCREL_ITYPE, obj.R_RISCV_PCREL_STYPE, obj.R_CALLRISCV:
+	case obj.R_RISCV_PCREL_ITYPE, obj.R_RISCV_PCREL_STYPE, obj.R_CALLRISCV2:
 		pc := s.Value + int64(r.Off)
 		off := ld.Symaddr(r.Sym) + r.Add - pc
 
@@ -83,7 +163,7 @@ func archreloc(ctxt *ld.Link, r *ld.Reloc, s *ld.Symbol, val *int64) int {
 
 		var secondImm, secondImmMask int64
 		switch r.Type {
-		case obj.R_RISCV_PCREL_ITYPE, obj.R_CALLRISCV:
+		case obj.R_RISCV_PCREL_ITYPE, obj.R_CALLRISCV2:
 			secondImmMask = riscv.ITypeImmMask
 			secondImm, err = riscv.EncodeIImmediate(low)
 			if err != nil {
@@ -108,7 +188,30 @@ func archreloc(ctxt *ld.Link, r *ld.Reloc, s *ld.Symbol, val *int64) int {
 		second = (second &^ secondImmMask) | int64(uint32(secondImm))
 
 		*val = second<<32 | auipc
+	case obj.R_CALLRISCV1:
+		pc := s.Value + int64(r.Off)
+		off := ld.Symaddr(r.Sym) + r.Add - pc
 
+		// This is always a JAL instruction, we just need
+		// to replace the immediate.
+		//
+		// TODO(prattmic): sanity check the opcode.
+		if off&1 != 0 {
+			ld.Errorf(s, "R_CALLRISCV relocation for %s is not aligned: %#x", r.Sym.Name, off)
+			return 0
+		}
+
+		imm, err := riscv.EncodeUJImmediate(off)
+		if err != nil {
+			// Anything larger should have resulted in a trampoline
+			ld.Errorf(s, "cannot encode R_CALLRISCV1 relocation offset for %s: %v", r.Sym.Name, err)
+			return 0
+		}
+
+		// The assembler is encoding a normal JAL instruction with the
+		// immediate as whatever p.To.Offset. We need to replace that
+		// immediate with the relocated value.
+		*val = (*val &^ riscv.UJTypeImmMask) | int64(imm)
 	default:
 		return -1
 	}
