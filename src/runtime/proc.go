@@ -1873,6 +1873,7 @@ func execute(gp *g, inheritTime bool) {
 	if !inheritTime {
 		_g_.m.p.ptr().schedtick++
 	}
+	gp.wbEnabled = writeBarrier.enabled
 	_g_.m.curg = gp
 	gp.m = _g_.m
 
@@ -2819,6 +2820,7 @@ func syscall_runtime_AfterFork() {
 // Allocate a new g, with a stack big enough for stacksize bytes.
 func malg(stacksize int32) *g {
 	newg := new(g)
+	newg.wbEnabled = writeBarrier.enabled
 	if stacksize >= 0 {
 		stacksize = round2(_StackSystem + stacksize)
 		systemstack(func() {
