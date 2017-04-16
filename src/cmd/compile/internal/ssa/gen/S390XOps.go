@@ -95,9 +95,10 @@ func init() {
 		gpsp = gp | sp
 
 		// R0 is considered to contain the value 0 in address calculations.
-		ptr     = gp &^ r0
-		ptrsp   = ptr | sp
-		ptrspsb = ptrsp | sb
+		ptr      = gp &^ r0
+		ptrsp    = ptr | sp
+		ptrspsb  = ptrsp | sb
+		ptrspsbg = ptrspsb | buildReg("g")
 
 		fp         = buildReg("F0 F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12 F13 F14 F15")
 		callerSave = gp | fp
@@ -128,7 +129,7 @@ func init() {
 		flagsgp   = regInfo{outputs: gponly}
 		gp2flags1 = regInfo{inputs: []regMask{gp, gp}, outputs: gponly}
 
-		gpload       = regInfo{inputs: []regMask{ptrspsb, 0}, outputs: gponly}
+		gpload       = regInfo{inputs: []regMask{ptrspsbg, 0}, outputs: gponly}
 		gploadidx    = regInfo{inputs: []regMask{ptrspsb, ptrsp, 0}, outputs: gponly}
 		gpopload     = regInfo{inputs: []regMask{gp, ptrsp, 0}, outputs: gponly}
 		gpstore      = regInfo{inputs: []regMask{ptrspsb, gpsp, 0}}
