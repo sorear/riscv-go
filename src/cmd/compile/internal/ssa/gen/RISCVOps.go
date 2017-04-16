@@ -81,16 +81,18 @@ func init() {
 
 	regCtxt := regNamed["CTXT"]
 	callerSave := gpMask | fpMask | regNamed["g"]
+	gpspsbgMask := gpspsbMask | regNamed["g"]
 
+	// TODO(sorear): Do we actually need to restrict any of these inputs?
 	var (
-		gpstore  = regInfo{inputs: []regMask{gpspsbMask, gpspMask, 0}} // SB in first input so we can load from a global, but not in second to avoid using SB as a temporary register
-		gpstore0 = regInfo{inputs: []regMask{gpspsbMask, 0}}
+		gpstore  = regInfo{inputs: []regMask{gpspsbgMask, gpspMask, 0}} // SB in first input so we can load from a global, but not in second to avoid using SB as a temporary register
+		gpstore0 = regInfo{inputs: []regMask{gpspsbgMask, 0}}
 		gp01     = regInfo{outputs: []regMask{gpMask}}
 		gp11     = regInfo{inputs: []regMask{gpMask}, outputs: []regMask{gpMask}}
 		gp21     = regInfo{inputs: []regMask{gpMask, gpMask}, outputs: []regMask{gpMask}}
 		gp1flags = regInfo{inputs: []regMask{gpMask}}
 		gp2flags = regInfo{inputs: []regMask{gpMask, gpMask}}
-		gpload   = regInfo{inputs: []regMask{gpspsbMask, 0}, outputs: []regMask{gpMask}}
+		gpload   = regInfo{inputs: []regMask{gpspsbgMask, 0}, outputs: []regMask{gpMask}}
 		gp11sb   = regInfo{inputs: []regMask{gpspsbMask}, outputs: []regMask{gpMask}}
 
 		fp11    = regInfo{inputs: []regMask{fpMask}, outputs: []regMask{fpMask}}
