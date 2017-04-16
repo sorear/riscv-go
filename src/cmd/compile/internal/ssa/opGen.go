@@ -17402,7 +17402,7 @@ var opcodeTable = [...]opInfo{
 		asm:            riscv.AMOVB,
 		reg: regInfo{
 			inputs: []inputInfo{
-				{0, 9223372037928515327}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
+				{0, 9223372037928517375}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP g T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
 			},
 			outputs: []outputInfo{
 				{0, 1073739007}, // S0 S1 A0 A1 A2 A3 A4 A5 GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5
@@ -17418,7 +17418,7 @@ var opcodeTable = [...]opInfo{
 		asm:            riscv.AMOVH,
 		reg: regInfo{
 			inputs: []inputInfo{
-				{0, 9223372037928515327}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
+				{0, 9223372037928517375}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP g T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
 			},
 			outputs: []outputInfo{
 				{0, 1073739007}, // S0 S1 A0 A1 A2 A3 A4 A5 GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5
@@ -17434,7 +17434,7 @@ var opcodeTable = [...]opInfo{
 		asm:            riscv.AMOVW,
 		reg: regInfo{
 			inputs: []inputInfo{
-				{0, 9223372037928515327}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
+				{0, 9223372037928517375}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP g T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
 			},
 			outputs: []outputInfo{
 				{0, 1073739007}, // S0 S1 A0 A1 A2 A3 A4 A5 GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5
@@ -17450,7 +17450,7 @@ var opcodeTable = [...]opInfo{
 		asm:            riscv.AMOV,
 		reg: regInfo{
 			inputs: []inputInfo{
-				{0, 9223372037928515327}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
+				{0, 9223372037928517375}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP g T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
 			},
 			outputs: []outputInfo{
 				{0, 1073739007}, // S0 S1 A0 A1 A2 A3 A4 A5 GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5
@@ -17466,7 +17466,7 @@ var opcodeTable = [...]opInfo{
 		asm:            riscv.AMOVBU,
 		reg: regInfo{
 			inputs: []inputInfo{
-				{0, 9223372037928515327}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
+				{0, 9223372037928517375}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP g T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
 			},
 			outputs: []outputInfo{
 				{0, 1073739007}, // S0 S1 A0 A1 A2 A3 A4 A5 GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5
@@ -17482,7 +17482,7 @@ var opcodeTable = [...]opInfo{
 		asm:            riscv.AMOVHU,
 		reg: regInfo{
 			inputs: []inputInfo{
-				{0, 9223372037928515327}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
+				{0, 9223372037928517375}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP g T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
 			},
 			outputs: []outputInfo{
 				{0, 1073739007}, // S0 S1 A0 A1 A2 A3 A4 A5 GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5
@@ -17498,7 +17498,7 @@ var opcodeTable = [...]opInfo{
 		asm:            riscv.AMOVWU,
 		reg: regInfo{
 			inputs: []inputInfo{
-				{0, 9223372037928515327}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
+				{0, 9223372037928517375}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP g T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
 			},
 			outputs: []outputInfo{
 				{0, 1073739007}, // S0 S1 A0 A1 A2 A3 A4 A5 GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5
@@ -17515,7 +17515,7 @@ var opcodeTable = [...]opInfo{
 		reg: regInfo{
 			inputs: []inputInfo{
 				{1, 1073739519},          // S0 S1 A0 A1 A2 A3 A4 A5 SP GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5
-				{0, 9223372037928515327}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
+				{0, 9223372037928517375}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP g T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
 			},
 		},
 	},
@@ -17529,7 +17529,7 @@ var opcodeTable = [...]opInfo{
 		reg: regInfo{
 			inputs: []inputInfo{
 				{1, 1073739519},          // S0 S1 A0 A1 A2 A3 A4 A5 SP GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5
-				{0, 9223372037928515327}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
+				{0, 9223372037928517375}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP g T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
 			},
 		},
 	},
@@ -17543,7 +17543,7 @@ var opcodeTable = [...]opInfo{
 		reg: regInfo{
 			inputs: []inputInfo{
 				{1, 1073739519},          // S0 S1 A0 A1 A2 A3 A4 A5 SP GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5
-				{0, 9223372037928515327}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
+				{0, 9223372037928517375}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP g T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
 			},
 		},
 	},
@@ -17557,7 +17557,7 @@ var opcodeTable = [...]opInfo{
 		reg: regInfo{
 			inputs: []inputInfo{
 				{1, 1073739519},          // S0 S1 A0 A1 A2 A3 A4 A5 SP GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5
-				{0, 9223372037928515327}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
+				{0, 9223372037928517375}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP g T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
 			},
 		},
 	},
@@ -17570,7 +17570,7 @@ var opcodeTable = [...]opInfo{
 		asm:            riscv.AMOVB,
 		reg: regInfo{
 			inputs: []inputInfo{
-				{0, 9223372037928515327}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
+				{0, 9223372037928517375}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP g T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
 			},
 		},
 	},
@@ -17583,7 +17583,7 @@ var opcodeTable = [...]opInfo{
 		asm:            riscv.AMOVH,
 		reg: regInfo{
 			inputs: []inputInfo{
-				{0, 9223372037928515327}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
+				{0, 9223372037928517375}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP g T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
 			},
 		},
 	},
@@ -17596,7 +17596,7 @@ var opcodeTable = [...]opInfo{
 		asm:            riscv.AMOVW,
 		reg: regInfo{
 			inputs: []inputInfo{
-				{0, 9223372037928515327}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
+				{0, 9223372037928517375}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP g T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
 			},
 		},
 	},
@@ -17609,7 +17609,7 @@ var opcodeTable = [...]opInfo{
 		asm:            riscv.AMOV,
 		reg: regInfo{
 			inputs: []inputInfo{
-				{0, 9223372037928515327}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
+				{0, 9223372037928517375}, // S0 S1 A0 A1 A2 A3 A4 A5 SP GP g T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5 SB
 			},
 		},
 	},
