@@ -53,7 +53,7 @@ func writebarrier(f *Func) {
 					continue
 				}
 
-				if wbaddr == nil {
+				if writebarrierptr == nil {
 					// initalize global values for write barrier test and calls
 					// find SB and SP values in entry block
 					initln := f.Entry.Pos
@@ -71,11 +71,15 @@ func writebarrier(f *Func) {
 					if sp == nil {
 						sp = f.Entry.NewValue0(initln, OpSP, f.Config.fe.TypeUintptr())
 					}
-					wbsym := &ExternSymbol{Typ: f.Config.fe.TypeBool(), Sym: f.Config.fe.Syslook("writeBarrier").(fmt.Stringer)}
-					wbaddr = f.Entry.NewValue1A(initln, OpAddr, f.Config.fe.TypeUInt32().PtrTo(), wbsym, sb)
 					writebarrierptr = f.Config.fe.Syslook("writebarrierptr")
 					typedmemmove = f.Config.fe.Syslook("typedmemmove")
 					typedmemclr = f.Config.fe.Syslook("typedmemclr")
+
+					if !f.Config.hasGReg {
+						// G-register architectures use per-G shadow, see below
+						wbsym := &ExternSymbol{Typ: f.Config.fe.TypeBool(), Sym: f.Config.fe.Syslook("writeBarrier").(fmt.Stringer)}
+						wbaddr = f.Entry.NewValue1A(initln, OpAddr, f.Config.fe.TypeUInt32().PtrTo(), wbsym, sb)
+					}
 
 					wbs = f.newSparseSet(f.NumValues())
 					defer f.retSparseSet(wbs)
@@ -137,6 +141,17 @@ func writebarrier(f *Func) {
 				for _, e := range b.Succs {
 					bEnd.Succs = append(bEnd.Succs, e)
 					e.b.Preds[e.i].b = bEnd
+				}
+
+				// For G-register architectures we recompute the wbaddr for each test, because it will generally
+				// be folded into the load as long as it isn't combined and spilled.
+				if f.Config.hasGReg {
+					// Access per-G shadow.  See comment in runtime.setGCPhase
+					initln := f.Entry.Pos
+					// generally fetching the per-G shadow takes 1 instruction but fetching the global would take 2
+					getg := b.NewValue1(initln, OpGetG, f.Config.fe.TypeUInt32().PtrTo(), mem) // this type is wrong
+					// Should match g_wbEnabled
+					wbaddr = b.NewValue1I(initln, OpOffPtr, f.Config.fe.TypeUInt32().PtrTo(), 7*f.Config.PtrSize, getg)
 				}
 
 				// set up control flow for write barrier test

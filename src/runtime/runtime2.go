@@ -344,6 +344,8 @@ type g struct {
 	_panic         *_panic // innermost panic - offset known to liblink
 	_defer         *_defer // innermost defer
 	m              *m      // current m; offset known to arm liblink
+	wbEnabled      bool    // per-G shadow of writeBarrier.enabled; offset known to compiler; see comment at setGCPhase
+	wbPadding      [3]byte // compiler uses 32-bit load for wbEnabled
 	stackAlloc     uintptr // stack allocation is [stack.lo,stack.lo+stackAlloc)
 	sched          gobuf
 	syscallsp      uintptr        // if status==Gsyscall, syscallsp = sched.sp to use during gc

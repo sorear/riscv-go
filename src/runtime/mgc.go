@@ -273,11 +273,41 @@ const (
 	_GCmarktermination        // GC mark termination: allocate black, P's help GC, write barrier ENABLED
 )
 
+// World is expected to be stopped.
+//
+// On G-register architectures accessing vaues from the G struct generally
+// requires fewer instructions than accessing global variables, so the compiler
+// (src/cmd/compile/internal/ssa/writebarrier.go) will access getg().wbEnabled
+// instead of writeBarrier.enabled on those architectures.
+//
+// To support this we keep wbEnabled up to date in all Gs that are linked to an
+// M; this function updates the current value and also updates all Gs currently
+// linked to an M, while functions that allocate Gs (malg) or that link
+// existing Gs to Ms need to update wbEnabled on the G at allocation/linking
+// time.
+//
+// This function assumes that, with the world stopped and sched.lock taken, it
+// cannot race with any function that allocates or schedules Gs.  Is that
+// correct?
 //go:nosplit
 func setGCPhase(x uint32) {
 	atomic.Store(&gcphase, x)
 	writeBarrier.needed = gcphase == _GCmark || gcphase == _GCmarktermination
 	writeBarrier.enabled = writeBarrier.needed || writeBarrier.cgo
+
+	lock(&sched.lock)
+	for mp := allm; mp != nil; mp = mp.alllink {
+		if curg := (*g)(atomic.Loadp(unsafe.Pointer(&mp.curg))); curg != nil {
+			curg.wbEnabled = writeBarrier.enabled
+		}
+		if g0 := (*g)(atomic.Loadp(unsafe.Pointer(&mp.g0))); g0 != nil {
+			g0.wbEnabled = writeBarrier.enabled
+		}
+		if gsignal := (*g)(atomic.Loadp(unsafe.Pointer(&mp.gsignal))); gsignal != nil {
+			gsignal.wbEnabled = writeBarrier.enabled
+		}
+	}
+	unlock(&sched.lock)
 }
 
 // gcMarkWorkerMode represents the mode that a concurrent mark worker
