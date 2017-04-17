@@ -433,8 +433,8 @@ func ssaGenBlock(s *gc.SSAGenState, b, next *ssa.Block) {
 		p := gc.Prog(riscv.ABNE)
 		p.To.Type = obj.TYPE_BRANCH
 		p.From.Type = obj.TYPE_REG
-		p.From.Reg = riscv.REG_ZERO
-		p.Reg = riscv.REG_A0
+		p.From.Reg = riscv.REG_A0
+		p.Reg = riscv.REG_ZERO
 		s.Branches = append(s.Branches, gc.Branch{P: p, B: b.Succs[1].Block()})
 		if b.Succs[0].Block() != next {
 			p := gc.Prog(obj.AJMP)

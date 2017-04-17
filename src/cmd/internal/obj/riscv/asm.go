@@ -1985,6 +1985,10 @@ func compress(p *obj.Prog, sizing bool) uint16 {
 			o := uint16(p.From.Offset)
 			return uint16(0x0001 | ((o>>5)&1)<<12 | uint16(rd)<<7 | (o&31)<<2)
 		}
+		if rs1 == 0 && rd == 0 && off == 0 {
+			// C.NOP // 000 0 0 0 01
+			return uint16(0x0001)
+		}
 		if rs1 == 0 && rd != 0 && immFits(off, 6) {
 			// C.LI // 010 imm[5] rs1/rd!=0 imm[4:0] 01
 			o := uint16(p.From.Offset)
