@@ -25,6 +25,8 @@ var progmap = map[obj.As]gc.ProgInfo{
 	obj.ARET:      {Flags: gc.Break},
 	obj.AJMP:      {Flags: gc.Jump | gc.Break | gc.KillCarry},
 	obj.ACALL:     {Flags: gc.RightAddr | gc.Call | gc.KillCarry},
+	obj.ADUFFZERO: {Flags: gc.Call},
+	obj.ADUFFCOPY: {Flags: gc.Call},
 
 	// NOP is an internal no-op that also stands for USED and SET
 	// annotations.

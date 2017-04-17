@@ -38,6 +38,7 @@ func main() {
 	gen("arm64", notags, zeroARM64, copyARM64)
 	gen("ppc64x", tagsPPC64x, zeroPPC64x, copyPPC64x)
 	gen("mips64x", tagsMIPS64x, zeroMIPS64x, copyMIPS64x)
+	gen("riscv", notags, zeroRISCV, copyRISCV)
 }
 
 func gen(arch string, tags, zero, copy func(io.Writer)) {
@@ -215,4 +216,30 @@ func zeroMIPS64x(w io.Writer) {
 
 func copyMIPS64x(w io.Writer) {
 	fmt.Fprintln(w, "// TODO: Implement runtime·duffcopy.")
+}
+
+func zeroRISCV(w io.Writer) {
+	// ZERO: always zero
+	// A0: ptr to start of memory to zero
+	// Use uncompressible instructions so that compiler does not need to track GORISCVRVC used to build runtime
+	// uses T0 return to allow usage in leaf functions
+	fmt.Fprintln(w, "TEXT runtime·duffzero(SB), NOSPLIT, $-8-0")
+	for i := 256 - 8; i >= 0; i -= 8 {
+		fmt.Fprintf(w, "\tMOV\tZERO, %d(A0)\n", i)
+	}
+	fmt.Fprintln(w, "\tRET\tT0")
+}
+
+func copyRISCV(w io.Writer) {
+	// A0: ptr to destination memory
+	// A1: ptr to source memory
+	// T6 aka TMP: not used by regalloc
+	// Use uncompressible instructions so that compiler does not need to track GORISCVRVC used to build runtime
+	// uses T0 return to allow usage in leaf functions
+	fmt.Fprintln(w, "TEXT runtime·duffcopy(SB), NOSPLIT, $0-0")
+	for i := 256 - 8; i >= 0; i -= 8 {
+		fmt.Fprintf(w, "\tMOV\t%d(A1), TMP\n", i)
+		fmt.Fprintf(w, "\tMOV\tTMP, %d(A0)\n", i)
+	}
+	fmt.Fprintln(w, "\tRET\tT0")
 }

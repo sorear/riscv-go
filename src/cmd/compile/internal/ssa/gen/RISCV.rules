@@ -549,6 +549,15 @@
 (Zero [s] ptr mem) && SizeAndAlign(s).Size() == 2 -> (MOVHstore ptr (MOVDconst) mem)
 (Zero [s] ptr mem) && SizeAndAlign(s).Size() == 4 -> (MOVWstore ptr (MOVDconst) mem)
 (Zero [s] ptr mem) && SizeAndAlign(s).Size() == 8 -> (MOVDstore ptr (MOVDconst) mem)
+(Zero [s] ptr mem) && SizeAndAlign(s).Size() == 16 -> (MOVDstorezero ptr (MOVDstorezero [8] ptr mem))
+(Zero [s] ptr mem) && SizeAndAlign(s).Size() == 24 -> (MOVDstorezero ptr (MOVDstorezero [8] ptr (MOVDstorezero [16] ptr mem)))
+
+// medium zeroing uses a duff device
+// 4, 8, and 16 are magic constants, see runtime/mkduff.go
+(Zero [s] ptr mem)
+	&& SizeAndAlign(s).Align() == 8 && SizeAndAlign(s).Size() > 24 && SizeAndAlign(s).Size() <= 8*32
+	&& !config.noDuffDevice ->
+	(DUFFZERO [4 * (32 - int64(SizeAndAlign(s).Size()/8))] ptr mem)
 
 // Generic zeroing uses a loop
 (Zero [s] ptr mem) ->
@@ -575,6 +584,18 @@
 (Move [s] dst src mem) && SizeAndAlign(s).Size() == 2 -> (MOVHstore dst (MOVHload src mem) mem)
 (Move [s] dst src mem) && SizeAndAlign(s).Size() == 4 -> (MOVWstore dst (MOVWload src mem) mem)
 (Move [s] dst src mem) && SizeAndAlign(s).Size() == 8 -> (MOVDstore dst (MOVDload src mem) mem)
+(Move [s] dst src mem) && SizeAndAlign(s).Size() == 16 ->
+	(MOVDstore dst (MOVDload src mem) (MOVDstore [8] dst (MOVDload [8] src mem) mem))
+(Move [s] dst src mem) && SizeAndAlign(s).Size() == 24 ->
+	(MOVDstore dst (MOVDload src mem) (MOVDstore [8] dst (MOVDload [8] src mem)
+		(MOVDstore [16] dst (MOVDload [16] src mem) mem)))
+
+// medium move uses a duff device
+// 8 and 128 are magic constants, see runtime/mkduff.go
+(Move [s] dst src mem)
+	&& SizeAndAlign(s).Align() == 8 && SizeAndAlign(s).Size() > 24 && SizeAndAlign(s).Size() <= 8*32
+	&& !config.noDuffDevice ->
+	(DUFFCOPY [8 * (32 - int64(SizeAndAlign(s).Size()/8))] dst src mem)
 
 // Generic move uses a loop
 (Move [s] dst src mem) ->

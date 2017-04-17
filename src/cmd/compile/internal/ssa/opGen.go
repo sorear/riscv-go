@@ -1441,6 +1441,8 @@ const (
 	OpRISCVCALLinter
 	OpRISCVLoweredZero
 	OpRISCVLoweredMove
+	OpRISCVDUFFZERO
+	OpRISCVDUFFCOPY
 	OpRISCVLoweredNilCheck
 	OpRISCVLoweredGetClosurePtr
 	OpRISCVFADDS
@@ -17983,6 +17985,34 @@ var opcodeTable = [...]opInfo{
 				{2, 1073738991}, // S0 S1 A0 A1 A3 A4 A5 GP T0 T1 T2 A6 A7 S2 S3 CTXT S5 S6 S7 S8 S9 S10 S11 T3 T4 T5
 			},
 			clobbers: 28, // A0 A1 A2
+		},
+	},
+	{
+		name:           "DUFFZERO",
+		auxType:        auxInt64,
+		argLen:         2,
+		clobberFlags:   true,
+		faultOnNilArg0: true,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 4}, // A0
+			},
+			clobbers: 4096, // T0
+		},
+	},
+	{
+		name:           "DUFFCOPY",
+		auxType:        auxInt64,
+		argLen:         3,
+		clobberFlags:   true,
+		faultOnNilArg0: true,
+		faultOnNilArg1: true,
+		reg: regInfo{
+			inputs: []inputInfo{
+				{0, 4}, // A0
+				{1, 8}, // A1
+			},
+			clobbers: 4096, // T0
 		},
 	},
 	{

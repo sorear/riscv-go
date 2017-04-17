@@ -246,6 +246,40 @@ func init() {
 			faultOnNilArg1: true,
 		},
 
+		// duffzero
+		// arg0 = address of memory to zero (in A0)
+		// arg1 = mem
+		// auxint = offset into duffzero code to start executing
+		// returns mem
+		{
+			name:      "DUFFZERO",
+			aux:       "Int64",
+			argLength: 2,
+			reg: regInfo{
+				inputs:   []regMask{regNamed["A0"]},
+				clobbers: regNamed["T0"], //link
+			},
+			faultOnNilArg0: true,
+		},
+
+		// duffcopy
+		// arg0 = address of dst memory (in A0)
+		// arg1 = address of src memory (in A1)
+		// arg2 = mem
+		// auxint = offset into duffcopy code to start executing
+		// returns mem
+		{
+			name:      "DUFFCOPY",
+			aux:       "Int64",
+			argLength: 3,
+			reg: regInfo{
+				inputs:   []regMask{regNamed["A0"], regNamed["A1"]},
+				clobbers: regNamed["T0"], //link
+			},
+			faultOnNilArg0: true,
+			faultOnNilArg1: true,
+		},
+
 		// Lowering pass-throughs
 		{name: "LoweredNilCheck", argLength: 2, faultOnNilArg0: true, nilCheck: true, reg: regInfo{inputs: []regMask{gpspMask}}}, // arg0=ptr,arg1=mem, returns void.  Faults if ptr is nil.
 		{name: "LoweredGetClosurePtr", reg: regInfo{outputs: []regMask{regCtxt}}},                                                // scheduler ensures only at beginning of entry block

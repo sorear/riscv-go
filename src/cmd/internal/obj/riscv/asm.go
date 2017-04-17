@@ -110,7 +110,7 @@ func lowerjalr(p *obj.Prog) {
 //
 // p must be a CALL or JMP.
 func jalrToSym(ctxt *obj.Link, p *obj.Prog, lr int16) {
-	if p.As != obj.ACALL && p.As != obj.AJMP {
+	if p.As != obj.ACALL && p.As != obj.AJMP && p.As != obj.ADUFFCOPY && p.As != obj.ADUFFZERO {
 		ctxt.Diag("unexpected Prog in jalrToSym: %v", p)
 		return
 	}
@@ -363,7 +363,7 @@ func containsCall(sym *obj.LSym) bool {
 	// CALLs are CALL or JAL(R) with link register RA.
 	for p := sym.Text; p != nil; p = p.Link {
 		switch p.As {
-		case obj.ACALL:
+		case obj.ACALL, obj.ADUFFCOPY, obj.ADUFFZERO:
 			return true
 		case AJAL, AJALR:
 			if p.To.Type == obj.TYPE_REG && p.To.Reg == REG_RA {
@@ -777,6 +777,14 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 				jalrToSym(ctxt, p, REG_RA)
 			}
 
+		// The compiler wants to use these in NOFRAME functions ... all other architectures ignore
+		// NOFRAME here and save RA anyway, but we have T0-calls (and use them for morestack) so use them
+		case obj.ADUFFZERO, obj.ADUFFCOPY:
+			switch p.To.Type {
+			case obj.TYPE_MEM:
+				jalrToSym(ctxt, p, REG_T0)
+			}
+
 		case obj.AJMP:
 			switch p.To.Type {
 			case obj.TYPE_MEM:
@@ -789,6 +797,11 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 
 		// Replace RET with epilogue.
 		case obj.ARET:
+			linkreg := p.From.Reg
+			if linkreg == 0 {
+				linkreg = REG_RA
+			}
+
 			if saveRA {
 				// Restore RA.
 				p.As = ALD
@@ -812,7 +825,7 @@ func preprocess(ctxt *obj.Link, cursym *obj.LSym) {
 			p.As = AJALR
 			p.From.Type = obj.TYPE_CONST
 			p.From.Offset = 0
-			p.From3 = &obj.Addr{Type: obj.TYPE_REG, Reg: REG_RA}
+			p.From3 = &obj.Addr{Type: obj.TYPE_REG, Reg: linkreg}
 			p.To.Type = obj.TYPE_REG
 			p.To.Reg = REG_ZERO
 			// "Add back" the stack removed in the previous instruction.

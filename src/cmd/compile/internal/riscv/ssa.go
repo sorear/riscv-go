@@ -386,6 +386,20 @@ func ssaGenValue(s *gc.SSAGenState, v *ssa.Value) {
 		p5.From.Reg = v.Args[2].Reg()
 		gc.Patch(p5, p)
 
+	case ssa.OpRISCVDUFFZERO:
+		p := gc.Prog(obj.ADUFFZERO) // basically the same as ACALL, but separate to keep -live happy
+		p.To.Type = obj.TYPE_MEM
+		p.To.Name = obj.NAME_EXTERN
+		p.To.Sym = gc.Linksym(gc.Pkglookup("duffzero", gc.Runtimepkg))
+		p.To.Offset = v.AuxInt
+
+	case ssa.OpRISCVDUFFCOPY:
+		p := gc.Prog(obj.ADUFFCOPY) // basically the same as ACALL, but separate to keep -live happy
+		p.To.Type = obj.TYPE_MEM
+		p.To.Name = obj.NAME_EXTERN
+		p.To.Sym = gc.Linksym(gc.Pkglookup("duffcopy", gc.Runtimepkg))
+		p.To.Offset = v.AuxInt
+
 	case ssa.OpRISCVLoweredNilCheck:
 		// Issue a load which will fault if arg is nil.
 		// TODO: optimizations. See arm and amd64 LoweredNilCheck.

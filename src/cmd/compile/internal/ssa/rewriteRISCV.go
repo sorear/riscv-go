@@ -3266,6 +3266,91 @@ func rewriteValueRISCV_OpMove(v *Value, config *Config) bool {
 		return true
 	}
 	// match: (Move [s] dst src mem)
+	// cond: SizeAndAlign(s).Size() == 16
+	// result: (MOVDstore dst (MOVDload src mem) (MOVDstore [8] dst (MOVDload [8] src mem) mem))
+	for {
+		s := v.AuxInt
+		dst := v.Args[0]
+		src := v.Args[1]
+		mem := v.Args[2]
+		if !(SizeAndAlign(s).Size() == 16) {
+			break
+		}
+		v.reset(OpRISCVMOVDstore)
+		v.AddArg(dst)
+		v0 := b.NewValue0(v.Pos, OpRISCVMOVDload, config.fe.TypeInt64())
+		v0.AddArg(src)
+		v0.AddArg(mem)
+		v.AddArg(v0)
+		v1 := b.NewValue0(v.Pos, OpRISCVMOVDstore, TypeMem)
+		v1.AuxInt = 8
+		v1.AddArg(dst)
+		v2 := b.NewValue0(v.Pos, OpRISCVMOVDload, config.fe.TypeInt64())
+		v2.AuxInt = 8
+		v2.AddArg(src)
+		v2.AddArg(mem)
+		v1.AddArg(v2)
+		v1.AddArg(mem)
+		v.AddArg(v1)
+		return true
+	}
+	// match: (Move [s] dst src mem)
+	// cond: SizeAndAlign(s).Size() == 24
+	// result: (MOVDstore dst (MOVDload src mem) (MOVDstore [8] dst (MOVDload [8] src mem) 		(MOVDstore [16] dst (MOVDload [16] src mem) mem)))
+	for {
+		s := v.AuxInt
+		dst := v.Args[0]
+		src := v.Args[1]
+		mem := v.Args[2]
+		if !(SizeAndAlign(s).Size() == 24) {
+			break
+		}
+		v.reset(OpRISCVMOVDstore)
+		v.AddArg(dst)
+		v0 := b.NewValue0(v.Pos, OpRISCVMOVDload, config.fe.TypeInt64())
+		v0.AddArg(src)
+		v0.AddArg(mem)
+		v.AddArg(v0)
+		v1 := b.NewValue0(v.Pos, OpRISCVMOVDstore, TypeMem)
+		v1.AuxInt = 8
+		v1.AddArg(dst)
+		v2 := b.NewValue0(v.Pos, OpRISCVMOVDload, config.fe.TypeInt64())
+		v2.AuxInt = 8
+		v2.AddArg(src)
+		v2.AddArg(mem)
+		v1.AddArg(v2)
+		v3 := b.NewValue0(v.Pos, OpRISCVMOVDstore, TypeMem)
+		v3.AuxInt = 16
+		v3.AddArg(dst)
+		v4 := b.NewValue0(v.Pos, OpRISCVMOVDload, config.fe.TypeInt64())
+		v4.AuxInt = 16
+		v4.AddArg(src)
+		v4.AddArg(mem)
+		v3.AddArg(v4)
+		v3.AddArg(mem)
+		v1.AddArg(v3)
+		v.AddArg(v1)
+		return true
+	}
+	// match: (Move [s] dst src mem)
+	// cond: SizeAndAlign(s).Align() == 8 && SizeAndAlign(s).Size() > 24 && SizeAndAlign(s).Size() <= 8*32 	&& !config.noDuffDevice
+	// result: (DUFFCOPY [8 * (32 - int64(SizeAndAlign(s).Size()/8))] dst src mem)
+	for {
+		s := v.AuxInt
+		dst := v.Args[0]
+		src := v.Args[1]
+		mem := v.Args[2]
+		if !(SizeAndAlign(s).Align() == 8 && SizeAndAlign(s).Size() > 24 && SizeAndAlign(s).Size() <= 8*32 && !config.noDuffDevice) {
+			break
+		}
+		v.reset(OpRISCVDUFFCOPY)
+		v.AuxInt = 8 * (32 - int64(SizeAndAlign(s).Size()/8))
+		v.AddArg(dst)
+		v.AddArg(src)
+		v.AddArg(mem)
+		return true
+	}
+	// match: (Move [s] dst src mem)
 	// cond:
 	// result: (LoweredMove [SizeAndAlign(s).Align()] 		dst 		src 		(ADDI <src.Type> [SizeAndAlign(s).Size()-moveSize(SizeAndAlign(s).Align(), config)] src) 		mem)
 	for {
@@ -7447,6 +7532,64 @@ func rewriteValueRISCV_OpZero(v *Value, config *Config) bool {
 		v.AddArg(ptr)
 		v0 := b.NewValue0(v.Pos, OpRISCVMOVDconst, config.fe.TypeUInt64())
 		v.AddArg(v0)
+		v.AddArg(mem)
+		return true
+	}
+	// match: (Zero [s] ptr mem)
+	// cond: SizeAndAlign(s).Size() == 16
+	// result: (MOVDstorezero ptr (MOVDstorezero [8] ptr mem))
+	for {
+		s := v.AuxInt
+		ptr := v.Args[0]
+		mem := v.Args[1]
+		if !(SizeAndAlign(s).Size() == 16) {
+			break
+		}
+		v.reset(OpRISCVMOVDstorezero)
+		v.AddArg(ptr)
+		v0 := b.NewValue0(v.Pos, OpRISCVMOVDstorezero, TypeMem)
+		v0.AuxInt = 8
+		v0.AddArg(ptr)
+		v0.AddArg(mem)
+		v.AddArg(v0)
+		return true
+	}
+	// match: (Zero [s] ptr mem)
+	// cond: SizeAndAlign(s).Size() == 24
+	// result: (MOVDstorezero ptr (MOVDstorezero [8] ptr (MOVDstorezero [16] ptr mem)))
+	for {
+		s := v.AuxInt
+		ptr := v.Args[0]
+		mem := v.Args[1]
+		if !(SizeAndAlign(s).Size() == 24) {
+			break
+		}
+		v.reset(OpRISCVMOVDstorezero)
+		v.AddArg(ptr)
+		v0 := b.NewValue0(v.Pos, OpRISCVMOVDstorezero, TypeMem)
+		v0.AuxInt = 8
+		v0.AddArg(ptr)
+		v1 := b.NewValue0(v.Pos, OpRISCVMOVDstorezero, TypeMem)
+		v1.AuxInt = 16
+		v1.AddArg(ptr)
+		v1.AddArg(mem)
+		v0.AddArg(v1)
+		v.AddArg(v0)
+		return true
+	}
+	// match: (Zero [s] ptr mem)
+	// cond: SizeAndAlign(s).Align() == 8 && SizeAndAlign(s).Size() > 24 && SizeAndAlign(s).Size() <= 8*32 	&& !config.noDuffDevice
+	// result: (DUFFZERO [4 * (32 - int64(SizeAndAlign(s).Size()/8))] ptr mem)
+	for {
+		s := v.AuxInt
+		ptr := v.Args[0]
+		mem := v.Args[1]
+		if !(SizeAndAlign(s).Align() == 8 && SizeAndAlign(s).Size() > 24 && SizeAndAlign(s).Size() <= 8*32 && !config.noDuffDevice) {
+			break
+		}
+		v.reset(OpRISCVDUFFZERO)
+		v.AuxInt = 4 * (32 - int64(SizeAndAlign(s).Size()/8))
+		v.AddArg(ptr)
 		v.AddArg(mem)
 		return true
 	}
